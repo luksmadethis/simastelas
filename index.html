@@ -24,7 +24,8 @@
   /* ---------- lateral ---------- */
   .side{background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
   .side-head{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
-  .logo{font-weight:800;font-size:22px;letter-spacing:-.5px}
+  .logo{font-weight:900;font-size:26px;letter-spacing:-.3px;text-shadow:0 0 14px rgba(255,255,255,.12)}
+  .grad{display:inline-block}
   .online{font-size:12px;color:var(--mut);margin-top:4px;display:flex;align-items:center;gap:6px}
   .gdot{width:8px;height:8px;border-radius:50%;background:#00d84a;box-shadow:0 0 8px #00d84a}
   .gdot.off{background:#ff8c00;box-shadow:0 0 8px #ff8c00}
@@ -108,7 +109,7 @@
   <!-- ============ LATERAL ============ -->
   <aside class="side">
     <div class="side-head">
-      <div class="logo grad">SimasTelas</div>
+      <div class="logo" title="SimasTelas"><span style="color:#e40303">S</span><span style="color:#ff8c00">i</span><span style="color:#ffed00">m</span><span style="color:#00c13a">a</span><span style="color:#2a6bff">s</span><span style="color:#a43cd8">T</span><span style="color:#e40303">e</span><span style="color:#ff8c00">l</span><span style="color:#ffed00">a</span><span style="color:#00c13a">s</span></div>
       <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">conectando…</span></div>
     </div>
     <div class="list" id="list"><div class="empty-list">Entrando na sala…</div></div>

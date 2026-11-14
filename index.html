@@ -17,6 +17,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://luksmadethis.github.io/simastelas/og.png?v=2">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 6'><rect y='0' width='6' height='1' fill='%23e40303'/><rect y='1' width='6' height='1' fill='%23ff8c00'/><rect y='2' width='6' height='1' fill='%23ffed00'/><rect y='3' width='6' height='1' fill='%23008026'/><rect y='4' width='6' height='1' fill='%23004dff'/><rect y='5' width='6' height='1' fill='%23750787'/></svg>">
+<link rel="preconnect" href="https://0.peerjs.com">
+<link rel="preconnect" href="https://unpkg.com">
 <style>
   :root{
     --r:#e40303;--o:#ff8c00;--y:#ffed00;--g:#00a83a;--b:#2a6bff;--v:#9b2bc2;
@@ -28,16 +30,15 @@
   body{background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
   .flag{height:6px;background:var(--rainbow);flex-shrink:0}
   .hidden{display:none!important}
-  .grad{background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .grad{background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
 
   .app{flex:1;display:grid;grid-template-columns:300px 1fr;min-height:0}
-  @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{min-height:60vh}}
+  @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{min-height:70vh}}
 
   /* ---------- lateral ---------- */
   .side{background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
   .side-head{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
   .logo{font-weight:900;font-size:26px;letter-spacing:-.3px;text-shadow:0 0 14px rgba(255,255,255,.12)}
-  .grad{display:inline-block}
   .online{font-size:12px;color:var(--mut);margin-top:4px;display:flex;align-items:center;gap:6px}
   .gdot{width:8px;height:8px;border-radius:50%;background:#00d84a;box-shadow:0 0 8px #00d84a}
   .gdot.off{background:#ff8c00;box-shadow:0 0 8px #ff8c00}
@@ -46,18 +47,21 @@
   .member.can{cursor:pointer}
   .member.can:hover{background:var(--card2)}
   .member.sel{background:var(--card2);border-color:#3b3550}
-  .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;flex-shrink:0;position:relative}
+  .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#fff;flex-shrink:0;position:relative;background-size:cover;background-position:center}
   .av.live{box-shadow:0 0 0 2px var(--card),0 0 0 4px #e40303}
   .mi{min-width:0;flex:1}
   .mn{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mn small{color:var(--mut);font-weight:400}
   .ms{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ms.live{color:#ff6b6b;font-weight:600}
-  .empty-list{color:var(--mut);font-size:13px;text-align:center;padding:20px}
+  .mtag{font-size:11px;color:var(--mut);flex-shrink:0}
+  .member.sel .mtag{color:#c9a7ff}
+  .empty-list{color:var(--mut);font-size:13px;text-align:center;padding:20px;display:flex;flex-direction:column;align-items:center;gap:10px}
 
   .controls{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
   .me{display:flex;align-items:center;gap:8px;font-size:14px}
   .me b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .me .av{width:26px;height:26px;font-size:12px}
   .link-btn{background:none;border:0;color:var(--mut);cursor:pointer;font-size:12px}
   .link-btn:hover{color:var(--txt)}
   select,input{background:#0f0e14;border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:9px 11px;font-size:13px;width:100%;outline:none}
@@ -69,48 +73,58 @@
   .btn:hover{filter:brightness(1.1)}
   .btn.main{background:linear-gradient(90deg,var(--r),var(--o) 25%,var(--g) 55%,var(--b) 80%,var(--v))}
   .btn.stop{background:#3a1520;color:#ff8a9a;border:1px solid #5a2030}
-  details.warn{font-size:11.5px;color:var(--mut);line-height:1.5;max-height:34vh;overflow:auto}
+  .live-ctl{display:flex;gap:8px}
+  .tog{flex:1;border:1px solid var(--line);background:#24212d;color:var(--txt);border-radius:10px;padding:10px 8px;font-size:13px;font-weight:700;cursor:pointer}
+  .tog.on{background:#16361f;border-color:#1f6b34;color:#7dffa5}
+  .tog.off{background:#3a1520;border-color:#5a2030;color:#ff8a9a}
+  details.warn{font-size:11.5px;color:var(--mut);line-height:1.5;max-height:30vh;overflow:auto}
   details.warn summary{cursor:pointer;color:#ffb347;font-weight:800;font-size:12px;list-style:none}
   details.warn summary::-webkit-details-marker{display:none}
   details.warn p{margin-top:6px}
   details.warn b{color:#ffd27a}
 
   /* ---------- palco ---------- */
-  .stage{display:flex;flex-direction:column;padding:16px;gap:12px;min-width:0;min-height:0}
-  .stage-top{display:flex;align-items:center;gap:10px;font-size:14px;min-height:24px}
-  .stage-top .who{font-weight:700;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pill{background:#e40303;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
-  .pill i{width:6px;height:6px;background:#fff;border-radius:50%;animation:pulse 1.2s infinite}
+  .stage{display:flex;flex-direction:column;padding:14px 16px 16px;gap:10px;min-width:0;min-height:0}
+  .stage-top{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mut);flex-wrap:wrap}
+  .chips{display:flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+  .chip{background:none;border:0;color:var(--mut);font-weight:700;font-size:13px;padding:7px 13px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .chip:hover{color:var(--txt);background:var(--card2)}
+  .chip.on{color:#fff;background:linear-gradient(90deg,#c0303a,#7a3ad0)}
+  .chip svg{width:16px;height:12px}
+  .stage-top .hint{margin-left:auto;font-size:12px}
+  .grid{flex:1;display:grid;gap:10px;min-height:0;position:relative}
+  .tile{background:#000;border-radius:14px;border:1px solid var(--line);position:relative;overflow:hidden;min-height:0;min-width:0}
+  .tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+  .tload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a090e}
+  .ttop{position:absolute;top:10px;left:10px;right:10px;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .tname{background:rgba(0,0,0,.6);backdrop-filter:blur(4px);color:#fff;font-size:13px;font-weight:700;padding:4px 10px 4px 6px;border-radius:999px;display:flex;align-items:center;gap:7px;max-width:70%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .tname .av{width:20px;height:20px;font-size:10px}
+  .tname i{width:7px;height:7px;background:#ff3030;border-radius:50%;animation:pulse 1.2s infinite;flex-shrink:0}
   @keyframes pulse{50%{opacity:.3}}
-  .stage-top .eyes{margin-left:auto;color:var(--mut);font-size:13px;flex-shrink:0}
-  .screen{flex:1;background:#000;border-radius:16px;border:1px solid var(--line);position:relative;overflow:hidden;min-height:0;display:flex;align-items:center;justify-content:center}
-  .screen video{width:100%;height:100%;object-fit:contain;background:#000;display:block}
-  .center-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;color:var(--mut);background:var(--bg)}
+  .teyes{background:rgba(0,0,0,.6);color:#ddd;font-size:12px;padding:4px 9px;border-radius:999px;margin-left:auto}
+  .tbar{position:absolute;left:0;right:0;bottom:0;padding:12px 12px 10px;display:flex;align-items:center;gap:6px;background:linear-gradient(transparent,rgba(0,0,0,.85));opacity:0;transition:opacity .2s}
+  .tile:hover .tbar,.tile.show .tbar{opacity:1}
+  .tstat{font-size:11px;color:#ccc;font-variant-numeric:tabular-nums;margin-right:auto;white-space:nowrap}
+  .ib{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer;white-space:nowrap}
+  .ib:hover{background:rgba(255,255,255,.26)}
+  .tbar input[type=range]{width:80px;padding:0;accent-color:#9b2bc2;background:none;border:0}
+  .unmute{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,18,28,.9);padding:12px 20px;border-radius:12px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6);z-index:2}
+  .center-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;color:var(--mut);background:#000;border-radius:14px;border:1px solid var(--line)}
   .center-msg h1{font-size:46px;line-height:1.05;color:var(--txt);letter-spacing:-1px}
-  .center-msg p{max-width:420px;font-size:15px;line-height:1.5}
-  .spinner{width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--r),var(--o),var(--y),var(--g),var(--b),var(--v),var(--r));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);animation:spin 1s linear infinite}
+  .spinner{width:40px;height:40px;border-radius:50%;background:conic-gradient(var(--r),var(--o),var(--y),var(--g),var(--b),var(--v),var(--r));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);animation:spin 1s linear infinite}
+  .spinner.sm{width:22px;height:22px;-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 0)}
   @keyframes spin{to{transform:rotate(1turn)}}
-  .unmute{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,18,28,.9);padding:16px 26px;border-radius:14px;font-size:17px;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6)}
-  .bar{position:absolute;left:0;right:0;bottom:0;padding:14px 18px;display:flex;align-items:center;gap:12px;background:linear-gradient(transparent,rgba(0,0,0,.85));opacity:0;transition:opacity .25s}
-  .screen:hover .bar,.screen.show .bar{opacity:1}
-  .bar .info{font-size:12px;color:#ddd;font-variant-numeric:tabular-nums;margin-right:auto}
-  .ibtn{background:rgba(255,255,255,.12);border:0;color:#fff;border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
-  .ibtn:hover{background:rgba(255,255,255,.22)}
-  input[type=range]{width:110px;padding:0;accent-color:#9b2bc2;background:none;border:0}
 
   /* ---------- modal nick ---------- */
   .modal{position:fixed;inset:0;background:rgba(5,4,8,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px;width:100%;max-width:400px;position:relative;overflow:hidden}
   .card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--rainbow)}
   .card h1{font-size:32px;margin-bottom:18px;letter-spacing:-.5px}
-  .card p{color:var(--mut);font-size:14px;margin-bottom:18px}
   .card .btn{margin-top:12px}
   .photo-row{display:flex;align-items:center;gap:14px;margin-bottom:14px}
   .photo-pick{width:72px;height:72px;border-radius:50%;background:#0f0e14 center/cover no-repeat;border:2px dashed #3b3550;display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;flex-shrink:0}
   .photo-pick.has{border:2px solid #9b2bc2}
   .photo-row .link-btn{font-size:13px;padding:3px 0}
-  .av{background-size:cover;background-position:center}
-  .me .av{width:26px;height:26px;font-size:12px}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24212d;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;z-index:99}
 </style>
 </head>
@@ -122,11 +136,11 @@
   <aside class="side">
     <div class="side-head">
       <div class="logo" title="SimasTelas"><span style="color:#e40303">S</span><span style="color:#ff8c00">i</span><span style="color:#ffed00">m</span><span style="color:#00c13a">a</span><span style="color:#2a6bff">s</span><span style="color:#a43cd8">T</span><span style="color:#e40303">e</span><span style="color:#ff8c00">l</span><span style="color:#ffed00">a</span><span style="color:#00c13a">s</span></div>
-      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">conectando…</span></div>
+      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">entrando…</span></div>
     </div>
-    <div class="list" id="list"><div class="empty-list">Entrando na sala…</div></div>
+    <div class="list" id="list"><div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div></div>
     <div class="controls">
-      <div class="me"><div class="av" id="meAv"></div><b id="meNick">—</b><button class="link-btn" id="editNick">✏️</button></div>
+      <div class="me"><div class="av" id="meAv"></div><b id="meNick">—</b><button class="link-btn" id="editNick" title="Editar perfil">✏️</button></div>
       <select id="mode" title="Tipo de conteúdo">
         <option value="motion">🎮 Fluidez</option>
         <option value="detail">📝 Nitidez</option>
@@ -136,30 +150,31 @@
         <option value="720">720p (internet podre véia)</option>
       </select>
       <button class="btn main" id="shareBtn">▶ Transmitir</button>
+      <div class="live-ctl hidden" id="liveCtl">
+        <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
+        <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
+      </div>
       <details class="warn" open>
         <summary>⚠️ le essa porra caralho</summary>
-        <p>marca a porra do <b>compartilha audio</b> mermao senao vai mudo seu arrombado se escolhe <b>tela intera</b> vai a merda da call junto e <b>da retorno puta q pariu</b> bah compartilha uma <b>aba do crome</b> cacete uai usa crome ou edge q o resto é bosta avisei fdp vem chora nao oxe foda se vei</p>
+        <p>marca a porra do <b>COMPARTILHA AUDIO</b> mermao senao vai mudo seu arrombado se escolhe <b>TELA INTERA</b> vai a merda da call junto e <b>DA RETORNO PUTA Q PARIU</b> bah compartilha uma <b>ABA DO CROME</b> cacete uai usa crome ou edge q o resto é bosta avisei fdp vem chora nao oxe foda se vei</p>
       </details>
     </div>
   </aside>
 
   <!-- ============ PALCO ============ -->
   <main class="stage">
-    <div class="stage-top" id="stageTop"></div>
-    <div class="screen" id="screen">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="center-msg" id="centerMsg">
-        <h1>Faz live <span class="grad">ai primo</span></h1>
-        
+    <div class="stage-top">
+      <div class="chips" id="chips" title="Quantas telas ver ao mesmo tempo">
+        <button class="chip" data-n="1"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="15" height="11" rx="2" fill="none" stroke="currentColor"/></svg>1</button>
+        <button class="chip" data-n="2"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="11" rx="1.5" fill="none" stroke="currentColor"/></svg>2</button>
+        <button class="chip" data-n="3"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x=".5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/></svg>3</button>
+        <button class="chip" data-n="4"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x=".5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/></svg>4</button>
+        <button class="chip" data-n="0">Todas</button>
       </div>
-      <button class="unmute hidden" id="unmuteBtn">🔊 Ativar som</button>
-      <div class="bar" id="bar">
-        <div class="info" id="stats"></div>
-        <button class="ibtn" id="muteBtn">🔊</button>
-        <input type="range" id="vol" min="0" max="1" step="0.01" value="1">
-        <button class="ibtn" id="pipBtn2" title="Janela flutuante">📌 Flutuar</button>
-        <button class="ibtn" id="fsBtn" title="Tela cheia">⛶</button>
-      </div>
+      <span class="hint" id="hint"></span>
+    </div>
+    <div class="grid" id="grid">
+      <div class="center-msg" id="centerMsg"><h1>Faz live <span class="grad">ai primo</span></h1></div>
     </div>
   </main>
 </div>
@@ -190,7 +205,7 @@
    SimasTelas — hall único de transmissão de tela
    Presença: o primeiro navegador a entrar vira o "hub" da sala
    (um ID fixo no servidor do PeerJS). Se ele sair, outro assume.
-   Vídeo/áudio: direto de quem compartilha pra quem assiste (WebRTC).
+   Vídeo/áudio: direto de quem transmite pra quem assiste (WebRTC).
    ========================================================= */
 const $ = id => document.getElementById(id);
 const store = {
@@ -237,15 +252,25 @@ let nick = store.get('simastelas-nick') || '';
 let photo = store.get('simastelas-photo') || '';
 let pendingPhoto = photo;
 let me = null, myId = null;
-let hubConn = null, hubTimer = null;
-let hub = null, becomingHub = false;
+let hubConn = null, hubTimer = null, gotList = false;
+let hub = null, hubApi = null, becomingHub = false;
 let members = [];
-let stream = null;                 // minha tela (se estiver compartilhando)
-const viewers = new Map();         // quem assiste a minha tela: peerId -> {conn, call}
-let watchingId = null, watchConn = null, watchCall = null;
-const skipUntil = {};              // evita reconectar em loop em quem acabou de parar
 
-/* ===================== nick ===================== */
+// transmitindo
+let capture = null;          // captura original da tela
+let stream = null;           // o que vai pros outros (vídeo + áudio mixado)
+let mix = null;              // { ctx, sg (ganho do som da tela), mg (ganho do mic), micSrc, hasScreenAudio }
+let micStream = null, micOn = false, soundOn = true;
+const viewers = new Map();   // quem assiste a minha tela: peerId -> {conn, call}
+
+// assistindo (grade)
+let layout = parseInt(store.get('simastelas-layout') ?? '1', 10); if (![0,1,2,3,4].includes(layout)) layout = 1;
+const tiles = new Map();     // peerId -> tile
+let order = [];              // ordem das telas na grade
+const hiddenIds = new Set(); // telas que a pessoa fechou na mão
+const skipUntil = {};        // evita reconectar em loop em quem acabou de parar
+
+/* ===================== perfil ===================== */
 function setAv(el, name, pic){
   el.style.backgroundImage = pic ? `url("${pic}")` : '';
   el.style.backgroundColor = pic ? '#000' : colorOf(name || '?');
@@ -258,7 +283,6 @@ function showPhotoPreview(){
   $('photoPreview').textContent = pendingPhoto ? '' : '📷';
   $('photoRemove').classList.toggle('hidden', !pendingPhoto);
 }
-/* foto: corta no meio, reduz pra 96x96 e salva como JPEG pequeno */
 $('photoChoose').onclick = () => $('photoInput').click();
 $('photoRemove').onclick = () => { pendingPhoto = ''; showPhotoPreview(); };
 $('photoInput').onchange = e => {
@@ -277,7 +301,6 @@ $('photoInput').onchange = e => {
   img.src = URL.createObjectURL(f);
 };
 function renderMe(){ $('meNick').textContent = nick; setAv($('meAv'), nick, photo); }
-
 function askNick(){
   pendingPhoto = photo; showPhotoPreview();
   $('nickInput').value = nick;
@@ -303,12 +326,12 @@ function boot(){
   me.on('open', id => { myId = id; joinHub(); });
   me.on('connection', onIncomingConn);
   me.on('call', onIncomingCall);
-  me.on('disconnected', () => setTimeout(() => { if (me && !me.destroyed && me.disconnected) me.reconnect(); }, 1500));
+  me.on('disconnected', () => setTimeout(() => { if (me && !me.destroyed && me.disconnected) me.reconnect(); }, 1000));
   me.on('error', err => {
     const msg = String(err.message || '');
     if (err.type === 'peer-unavailable') {
       if (msg.includes(HUB_ID)) { clearTimeout(hubTimer); hubConn = null; tryBecomeHub(); }
-      else if (watchingId && msg.includes(watchingId)) { skipUntil[watchingId] = Date.now() + 4000; stopWatching(); autoPick(); render(); }
+      else for (const id of [...order]) if (id !== myId && msg.includes(id)) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); }
     } else if (NET_ERRORS.includes(err.type)) {
       setNet(false, 'reconectando…');
     } else console.warn('peer', err);
@@ -322,46 +345,50 @@ function setNet(ok, txt){
 }
 
 function joinHub(){
-  if (!me || !me.open) { setTimeout(joinHub, 1000); return; }
+  if (!me || !me.open) { setTimeout(joinHub, 500); return; }
   if (hubConn) { const old = hubConn; hubConn = null; try { old.close(); } catch(e){} }
-  setNet(false, 'conectando na sala…');
+  if (!gotList) setNet(false, 'entrando…');
   const c = me.connect(HUB_ID, { reliable: true });
   hubConn = c;
   clearTimeout(hubTimer);
-  hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} tryBecomeHub(); } }, 8000);
+  hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} tryBecomeHub(); } }, 5000);
   c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); sendState(); });
-  c.on('data', d => { if (hubConn === c && d && d.t === 'list') onList(d.members); });
-  c.on('close', () => { if (hubConn !== c) return; hubConn = null; setNet(false, 'reconectando…'); setTimeout(joinHub, 300 + Math.random()*1500); });
+  c.on('data', d => {
+    if (hubConn !== c || !d) return;
+    if (d.t === 'list') onList(d.members);
+    else if (d.t === 'hubbye') { hubConn = null; try { c.close(); } catch(e){} setNet(false, 'reconectando…'); setTimeout(joinHub, 150 + Math.random()*900); }
+  });
+  c.on('close', () => { if (hubConn !== c) return; hubConn = null; setNet(false, 'reconectando…'); setTimeout(joinHub, 200 + Math.random()*1000); });
   c.on('error', () => {});
 }
 
 function sendState(){
   if (hubConn && hubConn.open) {
-    try { hubConn.send({ t:'state', nick, photo, sharing: !!stream, watching: watchingId }); } catch(e){}
+    try { hubConn.send({ t:'state', nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) }); } catch(e){}
   }
 }
 
 /* --- o hub: guarda quem tá na sala e avisa todo mundo --- */
 function tryBecomeHub(){
-  if (hub || becomingHub) { setTimeout(joinHub, 800); return; }
+  if (hub || becomingHub) { setTimeout(joinHub, 600); return; }
   becomingHub = true;
   const h = new Peer(HUB_ID, PEER_OPTS);
-  h.on('open', () => { becomingHub = false; hub = h; runHub(h); joinHub(); });
+  h.on('open', () => { becomingHub = false; hub = h; hubApi = runHub(h); joinHub(); });
   h.on('disconnected', () => setTimeout(() => { if (hub === h && !h.destroyed && h.disconnected) h.reconnect(); }, 1000));
   h.on('error', e => {
     if (e.type === 'unavailable-id') {           // alguém já é o hub
-      becomingHub = false; if (hub === h) hub = null; h.destroy();
-      setTimeout(joinHub, 400 + Math.random()*1000);
+      becomingHub = false; if (hub === h) { hub = null; hubApi = null; } h.destroy();
+      setTimeout(joinHub, 200 + Math.random()*700);
     } else if (hub !== h && !NET_ERRORS.includes(e.type)) {
-      becomingHub = false; h.destroy(); setTimeout(joinHub, 2000);
+      becomingHub = false; h.destroy(); setTimeout(joinHub, 1500);
     }
   });
 }
 
 function runHub(h){
-  const hm = new Map(); // peerId -> {conn,id,nick,sharing,watching,seen}
+  const hm = new Map(); // peerId -> {conn,id,nick,photo,sharing,mic,sound,watching,seen}
   const bcast = () => {
-    const list = [...hm.values()].map(({id,nick,photo,sharing,watching}) => ({id,nick,photo,sharing,watching}));
+    const list = [...hm.values()].map(({id,nick,photo,sharing,mic,sound,watching}) => ({id,nick,photo,sharing,mic,sound,watching}));
     for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list }); } catch(e){}
   };
   h.on('connection', c => {
@@ -369,202 +396,259 @@ function runHub(h){
       if (!d || typeof d !== 'object') return;
       if (d.t === 'state') {
         const ph = (typeof d.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo) && d.photo.length < 40000) ? d.photo : '';
+        const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
         hm.set(c.peer, { conn:c, id:c.peer, nick:String(d.nick || '???').slice(0,20), photo:ph,
-                         sharing:!!d.sharing, watching: typeof d.watching === 'string' ? d.watching : null, seen:Date.now() });
+                         sharing:!!d.sharing, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() });
         bcast();
       } else if (d.t === 'ping') {
         const m = hm.get(c.peer); if (m) m.seen = Date.now();
+      } else if (d.t === 'bye') {
+        if (hm.delete(c.peer)) bcast();
       }
     });
     c.on('close', () => { const m = hm.get(c.peer); if (m && m.conn === c) { hm.delete(c.peer); bcast(); } });
   });
   setInterval(() => {
     const now = Date.now(); let changed = false;
-    for (const [id, m] of hm) if (now - m.seen > 25000) { try { m.conn.close(); } catch(e){} hm.delete(id); changed = true; }
+    for (const [id, m] of hm) if (now - m.seen > 20000) { try { m.conn.close(); } catch(e){} hm.delete(id); changed = true; }
     if (changed) bcast();
   }, 5000);
+  return { bye(){ for (const m of hm.values()) if (m.conn.open && m.id !== myId) try { m.conn.send({ t:'hubbye' }); } catch(e){} } };
 }
+
+// saindo da página: avisa na hora pra ninguém ficar esperando
+window.addEventListener('pagehide', () => {
+  try { if (hubConn && hubConn.open) hubConn.send({ t:'bye' }); } catch(e){}
+  try { hubApi && hubApi.bye(); } catch(e){}
+  setTimeout(() => { try { me && me.destroy(); } catch(e){} try { hub && hub.destroy(); } catch(e){} }, 0);
+});
 
 /* ===================== lista de quem tá online ===================== */
 function onList(list){
+  gotList = true;
   members = list;
   setNet(true, `${list.length} online`);
-  if (watchingId && watchingId !== myId && !list.some(m => m.id === watchingId && m.sharing)) stopWatching();
-  autoPick();
-  render();
-}
-
-function autoPick(){
-  if (watchingId) return;
-  if (stream) { watch(myId); return; }
-  const now = Date.now();
-  const s = members.find(m => m.sharing && m.id !== myId && !(skipUntil[m.id] > now));
-  if (s) watch(s.id);
-  else {
-    showEmpty();
-    if (members.some(m => m.sharing && m.id !== myId)) setTimeout(() => { autoPick(); render(); }, 4200);
-  }
+  syncTiles();
 }
 
 function nickOf(id){ if (id === myId) return nick; const m = members.find(x => x.id === id); return m ? m.nick : '???'; }
+function memberOf(id){ return members.find(x => x.id === id); }
+function eyesOn(id){ return members.filter(x => x.id !== id && Array.isArray(x.watching) && x.watching.includes(id)).length; }
 
 function render(){
   const L = $('list'); L.innerHTML = '';
   const sorted = [...members].sort((a,b) => (b.sharing - a.sharing) || (a.id === myId ? -1 : b.id === myId ? 1 : a.nick.localeCompare(b.nick)));
-  if (!sorted.length) L.innerHTML = '<div class="empty-list">Entrando na sala…</div>';
+  if (!gotList) { L.innerHTML = '<div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div>'; }
   for (const m of sorted) {
     const isMe = m.id === myId;
-    const eyes = members.filter(x => x.watching === m.id && x.id !== m.id).length;
+    const shown = order.includes(m.id);
     const el = document.createElement('div');
-    el.className = 'member' + (m.sharing ? ' can' : '') + (m.id === watchingId ? ' sel' : '');
-    if (m.sharing) el.title = isMe ? 'Ver sua prévia' : 'Assistir a tela de ' + m.nick;
-    const av = document.createElement('div');
-    av.className = 'av' + (m.sharing ? ' live' : '');
+    el.className = 'member' + (m.sharing ? ' can' : '') + (shown ? ' sel' : '');
+    if (m.sharing) el.title = shown ? 'Tirar da tela' : 'Pôr na tela';
+    const av = document.createElement('div'); av.className = 'av' + (m.sharing ? ' live' : '');
     setAv(av, m.nick, m.photo);
     const info = document.createElement('div'); info.className = 'mi';
     const n = document.createElement('div'); n.className = 'mn'; n.textContent = m.nick;
     if (isMe) { const s = document.createElement('small'); s.textContent = ' (você)'; n.appendChild(s); }
     const st = document.createElement('div'); st.className = 'ms' + (m.sharing ? ' live' : '');
-    if (m.sharing) st.textContent = `🔴 ao vivo${eyes ? ' · 👀 ' + eyes : ''}`;
-    else if (m.watching && m.watching !== m.id) st.textContent = '👀 ' + nickOf(m.watching);
-    else st.textContent = 'online';
+    if (m.sharing) {
+      const e = eyesOn(m.id);
+      st.textContent = '🔴 ao vivo' + (m.mic ? ' · 🎤' : '') + (m.sound === false ? ' · 🔇' : '') + (e ? ' · 👀 ' + e : '');
+    } else if (Array.isArray(m.watching) && m.watching.length) {
+      st.textContent = '👀 ' + nickOf(m.watching[0]) + (m.watching.length > 1 ? ` +${m.watching.length - 1}` : '');
+    } else st.textContent = 'online';
     info.append(n, st); el.append(av, info);
-    if (m.sharing) el.onclick = () => watch(m.id);
+    if (m.sharing) {
+      const tag = document.createElement('span'); tag.className = 'mtag'; tag.textContent = shown ? '📺 na tela' : '+ ver';
+      el.appendChild(tag);
+      el.onclick = () => toggleOnScreen(m.id);
+    }
     L.appendChild(el);
   }
-  renderTop();
+  // chips
+  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.n === layout));
+  const live = sharerIds().length;
+  $('hint').textContent = live ? `${live} ao vivo` : '';
+  // contadores nas telas
+  for (const t of tiles.values()) updateTileInfo(t);
 }
 
-function renderTop(){
-  const T = $('stageTop'); T.innerHTML = '';
-  if (!watchingId) return;
-  const pill = document.createElement('span'); pill.className = 'pill'; pill.innerHTML = '<i></i> AO VIVO';
-  const who = document.createElement('span'); who.className = 'who';
-  who.textContent = watchingId === myId ? 'Você' : nickOf(watchingId);
-  const eyes = document.createElement('span'); eyes.className = 'eyes';
-  const n = members.filter(x => x.watching === watchingId && x.id !== watchingId).length;
-  eyes.textContent = `👀 ${n}`;
-  T.append(pill, who, eyes);
-  if (document.pictureInPictureEnabled) {
-    const b = document.createElement('button'); b.className = 'ibtn'; b.style.background = '#24212d';
-    b.textContent = document.pictureInPictureElement ? '📌 Desafixar' : '📌 Flutuar';
-    b.title = 'Deixa a tela numa janelinha flutuante por cima de tudo';
-    b.onclick = togglePip; T.appendChild(b);
+/* ===================== grade de telas ===================== */
+function sharerIds(){
+  const others = members.filter(m => m.sharing && m.id !== myId).map(m => m.id);
+  return stream ? [...others, myId] : others;
+}
+
+function syncTiles(){
+  const avail = sharerIds();
+  for (const id of [...hiddenIds]) if (!avail.includes(id)) hiddenIds.delete(id);
+  for (const id of [...order]) if (!avail.includes(id)) removeTile(id);
+  const max = layout || 99;
+  while (order.length > max) removeTile(order[order.length - 1]);
+  const now = Date.now();
+  let waiting = false;
+  for (const id of avail) {
+    if (order.length >= max) break;
+    if (order.includes(id) || hiddenIds.has(id)) continue;
+    if (skipUntil[id] > now) { waiting = true; continue; }
+    addTile(id);
   }
+  if (waiting) { clearTimeout(syncTiles.t); syncTiles.t = setTimeout(syncTiles, 4200); }
+  layoutGrid(); sendState(); render();
 }
 
-/* ===================== assistir ===================== */
-function watch(id){
-  if (id === watchingId) return;
-  stopWatching(false);
-  watchingId = id;
-  if (id === myId) {
-    setVideo(stream, true);
+function setLayout(n){
+  layout = n; store.set('simastelas-layout', String(n));
+  syncTiles();
+}
+document.querySelectorAll('.chip').forEach(b => b.onclick = () => setLayout(+b.dataset.n));
+
+function toggleOnScreen(id){
+  if (order.includes(id)) {
+    if (order.length === 1) return;         // não deixa a tela vazia
+    hiddenIds.add(id); removeTile(id); syncTiles();
   } else {
-    showLoading('Conectando…');
-    const c = me.connect(id, { reliable: true, metadata: { t: 'watch' } });
-    watchConn = c;
-    c.on('close', () => { if (watchConn === c) { skipUntil[id] = Date.now() + 4000; stopWatching(); autoPick(); render(); } });
-    c.on('error', () => {});
+    hiddenIds.delete(id);
+    const max = layout || 99;
+    if (order.length >= max) removeTile(order[order.length - 1]);
+    addTile(id); syncTiles();
   }
-  sendState(); render();
 }
 
-function stopWatching(send = true){
-  const c = watchConn, k = watchCall;
-  watchConn = null; watchCall = null; watchingId = null;
-  try { k && k.close(); } catch(e){}
-  try { c && c.close(); } catch(e){}
-  setVideo(null);
-  if (send) sendState();
+function layoutGrid(){
+  const g = $('grid'), n = order.length;
+  $('centerMsg').classList.toggle('hidden', n > 0);
+  if (!n) {
+    const others = sharerIds().length;
+    $('centerMsg').innerHTML = others
+      ? '<h1>Faz live <span class="grad">ai primo</span></h1><p>tem gente ao vivo, clica na lista do lado</p>'
+      : '<h1>Faz live <span class="grad">ai primo</span></h1>';
+  }
+  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  const rows = Math.max(1, Math.ceil(n / cols));
+  g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
+  g.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
+  order.forEach((id, i) => { const t = tiles.get(id); if (t) t.el.style.order = i; });
+  // com 3 telas, a terceira ocupa a linha de baixo inteira
+  order.forEach((id, i) => { const t = tiles.get(id); if (t) t.el.style.gridColumn = (n === 3 && i === 2) ? '1 / span 2' : ''; });
+}
+
+function addTile(id){
+  if (tiles.has(id)) return;
+  const self = id === myId;
+  const el = document.createElement('div'); el.className = 'tile';
+  el.innerHTML = `
+    <video autoplay playsinline muted></video>
+    <div class="tload"><div class="spinner"></div></div>
+    <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
+    <button class="unmute hidden">🔊 Ativar som</button>
+    <div class="tbar">
+      <span class="tstat"></span>
+      <button class="ib b-mute" title="Mutar">🔊</button>
+      <input type="range" class="b-vol" min="0" max="1" step="0.01" value="1" title="Volume">
+      <button class="ib b-pip" title="Flutuar (fica por cima de tudo)">📌</button>
+      <button class="ib b-solo" title="Ver só essa">⤢</button>
+      <button class="ib b-fs" title="Tela cheia">⛶</button>
+      <button class="ib b-close" title="Fechar essa tela">✖</button>
+    </div>`;
+  const t = { id, el, self, video: el.querySelector('video'), conn: null, call: null, dead: false };
+  const q = s => el.querySelector(s);
+  if (self) { q('.b-mute').classList.add('hidden'); q('.b-vol').classList.add('hidden'); }
+  if (!document.pictureInPictureEnabled) q('.b-pip').classList.add('hidden');
+  q('.unmute').onclick = () => { t.video.muted = false; t.video.play().catch(()=>{}); q('.unmute').classList.add('hidden'); updMute(t); };
+  q('.b-mute').onclick = () => { t.video.muted = !t.video.muted; q('.unmute').classList.add('hidden'); updMute(t); };
+  q('.b-vol').oninput = e => { t.video.volume = +e.target.value; if (t.video.volume > 0) { t.video.muted = false; q('.unmute').classList.add('hidden'); } updMute(t); };
+  q('.b-pip').onclick = async () => {
+    try {
+      if (document.pictureInPictureElement === t.video) await document.exitPictureInPicture();
+      else await t.video.requestPictureInPicture();
+    } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
+  };
+  q('.b-solo').onclick = () => { for (const o of [...order]) if (o !== id) removeTile(o); setLayout(1); };
+  q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
+  t.video.ondblclick = () => q('.b-fs').click();
+  q('.b-close').onclick = () => { hiddenIds.add(id); removeTile(id); syncTiles(); };
+  let hideT; el.addEventListener('mousemove', () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 2500); });
+
+  tiles.set(id, t); order.push(id);
+  $('grid').appendChild(el);
+  updateTileInfo(t);
+  startStats(t);
+
+  if (self) { setTileStream(t, stream); return; }
+  const c = me.connect(id, { reliable: true, metadata: { t: 'watch' } });
+  t.conn = c;
+  const gone = () => { if (tiles.get(id) === t) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); } };
+  c.on('close', gone);
+  c.on('error', () => {});
+  t.gone = gone;
+}
+
+function removeTile(id){
+  const t = tiles.get(id);
+  if (!t) return;
+  tiles.delete(id); order = order.filter(x => x !== id);
+  t.dead = true;
+  if (document.pictureInPictureElement === t.video) document.exitPictureInPicture().catch(()=>{});
+  try { t.call && t.call.close(); } catch(e){}
+  try { t.conn && t.conn.close(); } catch(e){}
+  t.video.srcObject = null;
+  t.el.remove();
 }
 
 function onIncomingCall(call){
-  if (!watchingId || call.peer !== watchingId || watchingId === myId) { try { call.close(); } catch(e){} return; }
-  watchCall = call;
+  const t = tiles.get(call.peer);
+  if (!t || t.self || t.call) { try { call.close(); } catch(e){} return; }
+  t.call = call;
   call.answer(undefined, { sdpTransform: hqAudioSdp });
   call.on('stream', s => {
-    if (watchCall !== call) return;
+    if (t.dead) return;
     try { call.peerConnection.getReceivers().forEach(r => { if ('playoutDelayHint' in r) r.playoutDelayHint = 0; }); } catch(e){}
-    setVideo(s, false);
+    setTileStream(t, s);
   });
-  call.on('close', () => { if (watchCall === call) { stopWatching(); autoPick(); render(); } });
+  call.on('close', () => t.gone && t.gone());
 }
 
-/* ===================== palco ===================== */
-function setVideo(s, self){
-  const v = $('video');
-  $('unmuteBtn').classList.add('hidden');
-  if (!s) { v.srcObject = null; return; }
+function setTileStream(t, s){
+  const v = t.video, q = sel => t.el.querySelector(sel);
   v.srcObject = s;
-  $('centerMsg').classList.add('hidden');
-  if (self) { v.muted = true; v.play().catch(()=>{}); updateMuteIcon(); return; }
-  v.volume = +$('vol').value;
+  q('.tload').classList.add('hidden');
+  if (t.self) { v.muted = true; v.play().catch(()=>{}); return; }
+  v.volume = +q('.b-vol').value;
   v.muted = false;
-  v.play().catch(() => {
-    v.muted = true; v.play().catch(()=>{});
-    $('unmuteBtn').classList.remove('hidden');
-  });
-  updateMuteIcon();
+  v.play().catch(() => { v.muted = true; v.play().catch(()=>{}); q('.unmute').classList.remove('hidden'); updMute(t); });
+  updMute(t);
 }
-async function togglePip(){
-  const v = $('video');
-  try {
-    if (document.pictureInPictureElement) await document.exitPictureInPicture();
-    else if (v.srcObject) await v.requestPictureInPicture();
-    else toast('Não tem tela nenhuma pra flutuar, primo');
-  } catch(e){ toast('Seu navegador não deixou flutuar: ' + e.message); }
-}
-$('pipBtn2').onclick = togglePip;
-$('video').addEventListener('enterpictureinpicture', () => { renderTop(); toast('Tela flutuando! Arrasta e redimensiona do jeito que quiser'); });
-$('video').addEventListener('leavepictureinpicture', renderTop);
+function updMute(t){ const v = t.video; t.el.querySelector('.b-mute').textContent = (v.muted || v.volume === 0) ? '🔇' : '🔊'; }
 
-function showEmpty(){
-  if (document.pictureInPictureElement) document.exitPictureInPicture().catch(()=>{});
-  $('video').srcObject = null;
-  const c = $('centerMsg');
-  c.innerHTML = '<h1>Faz live <span class="grad">ai primo</span></h1>';
-  c.classList.remove('hidden');
-}
-function showLoading(txt){
-  const c = $('centerMsg');
-  c.innerHTML = '<div class="spinner"></div><p></p>';
-  c.querySelector('p').textContent = txt;
-  c.classList.remove('hidden');
+function updateTileInfo(t){
+  const m = memberOf(t.id);
+  const name = t.self ? 'Você' : (m ? m.nick : '…');
+  t.el.querySelector('.tn').textContent = name + (m && m.mic ? ' 🎤' : '');
+  setAv(t.el.querySelector('.tname .av'), m ? m.nick : nick, m ? m.photo : photo);
+  const e = eyesOn(t.id);
+  const ey = t.el.querySelector('.teyes');
+  ey.textContent = '👀 ' + e; ey.classList.toggle('hidden', !e);
 }
 
-$('unmuteBtn').onclick = () => { const v = $('video'); v.muted = false; v.play(); $('unmuteBtn').classList.add('hidden'); updateMuteIcon(); };
-$('muteBtn').onclick = () => { if (watchingId === myId) return toast('Sua prévia fica sempre muda (pra não dar retorno)'); const v = $('video'); v.muted = !v.muted; $('unmuteBtn').classList.add('hidden'); updateMuteIcon(); };
-$('vol').oninput = e => { const v = $('video'); v.volume = +e.target.value; if (v.volume > 0 && watchingId !== myId) { v.muted = false; $('unmuteBtn').classList.add('hidden'); } updateMuteIcon(); };
-function updateMuteIcon(){ const v = $('video'); $('muteBtn').textContent = (v.muted || v.volume === 0) ? '🔇' : '🔊'; }
-
-function toggleFs(){ document.fullscreenElement ? document.exitFullscreen() : $('screen').requestFullscreen().catch(()=>{}); }
-$('fsBtn').onclick = toggleFs;
-$('video').ondblclick = toggleFs;
-document.addEventListener('keydown', e => {
-  if (['INPUT','SELECT'].includes(e.target.tagName) || !$('nickModal').classList.contains('hidden')) return;
-  if (e.key === 'f' || e.key === 'F') toggleFs();
-  if (e.key === 'm' || e.key === 'M') $('muteBtn').click();
-});
-let hideT; $('screen').addEventListener('mousemove', () => { $('screen').classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => $('screen').classList.remove('show'), 2500); });
-
-(function stats(){
-  const v = $('video');
+function startStats(t){
+  const v = t.video, out = t.el.querySelector('.tstat');
   if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
   let frames = 0, last = performance.now();
   const tick = () => {
+    if (t.dead) return;
     frames++;
     const now = performance.now();
     if (now - last >= 1000) {
-      $('stats').textContent = v.videoWidth ? `${v.videoWidth}×${v.videoHeight} • ${Math.round(frames*1000/(now-last))}fps` : '';
+      out.textContent = v.videoWidth ? `${v.videoWidth}×${v.videoHeight} • ${Math.round(frames*1000/(now-last))}fps` : '';
       frames = 0; last = now;
     }
     v.requestVideoFrameCallback(tick);
   };
   v.requestVideoFrameCallback(tick);
-})();
+}
 
-/* ===================== compartilhar ===================== */
+/* ===================== transmitir ===================== */
 $('shareBtn').onclick = () => stream ? stopShare() : startShare();
 
 async function startShare(){
@@ -587,28 +671,82 @@ async function startShare(){
 }
 
 function beginShare(s){
-  stream = s;
+  capture = s;
   const v = s.getVideoTracks()[0];
   v.contentHint = $('mode').value;
   v.addEventListener('ended', stopShare);
-  const a = s.getAudioTracks()[0];
-  if (a) a.contentHint = 'music'; else toast('Tá indo sem áudio — marca “Compartilhar áudio” se quiser som');
+
+  // mixer: som da tela + mic (cada um com seu liga/desliga, sem reconectar ninguém)
+  const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+  const dest = ctx.createMediaStreamDestination(); dest.channelCount = 2;
+  const sg = ctx.createGain(), mg = ctx.createGain();
+  sg.gain.value = soundOn ? 1 : 0; mg.gain.value = 0;
+  const sa = s.getAudioTracks()[0];
+  if (sa) ctx.createMediaStreamSource(new MediaStream([sa])).connect(sg);
+  sg.connect(dest); mg.connect(dest);
+  ctx.resume().catch(()=>{});
+  mix = { ctx, sg, mg, micSrc: null, hasScreenAudio: !!sa };
+  const at = dest.stream.getAudioTracks()[0];
+  at.contentHint = 'music';
+  stream = new MediaStream([v, at]);
+  if (!sa) toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
+
   $('shareBtn').className = 'btn stop'; $('shareBtn').textContent = '■ Parar';
   $('mode').disabled = $('res').disabled = true;
-  watch(myId);
+  $('liveCtl').classList.remove('hidden');
+  updLiveCtl();
+  hiddenIds.delete(myId);
+  if (layout === 1) { for (const o of [...order]) removeTile(o); addTile(myId); }  // em 1 tela, mostra a sua prévia
+  syncTiles();
 }
 
 function stopShare(){
   if (!stream) return;
-  stream.getTracks().forEach(t => t.stop());
-  stream = null;
+  capture.getTracks().forEach(t => t.stop());
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  micStream = null; micOn = false;
+  try { mix.ctx.close(); } catch(e){}
+  mix = null; stream = null; capture = null;
   for (const id of [...viewers.keys()]) dropViewer(id);
   $('shareBtn').className = 'btn main'; $('shareBtn').textContent = '▶ Transmitir';
   $('mode').disabled = $('res').disabled = false;
-  if (watchingId === myId) stopWatching(false);
-  sendState();
-  autoPick(); render();
+  $('liveCtl').classList.add('hidden');
+  removeTile(myId);
+  syncTiles();
 }
+
+async function toggleMic(){
+  if (!mix) return;
+  if (!micOn) {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    } catch(e) { toast('Sem permissão pro microfone'); return; }
+    if (!mix) { micStream.getTracks().forEach(t => t.stop()); micStream = null; return; }
+    mix.micSrc = mix.ctx.createMediaStreamSource(micStream);
+    mix.micSrc.connect(mix.mg);
+    mix.mg.gain.value = 1; micOn = true;
+  } else {
+    mix.mg.gain.value = 0;
+    try { mix.micSrc && mix.micSrc.disconnect(); } catch(e){}
+    mix.micSrc = null;
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    micStream = null; micOn = false;
+  }
+  updLiveCtl(); sendState();
+}
+function toggleSound(){
+  soundOn = !soundOn;
+  if (mix) mix.sg.gain.value = soundOn ? 1 : 0;
+  if (soundOn && mix && !mix.hasScreenAudio) toast('Essa transmissão tá sem som da tela (não marcou compartilha audio)');
+  updLiveCtl(); sendState();
+}
+function updLiveCtl(){
+  const m = $('micBtn'), s = $('sndBtn');
+  m.className = 'tog ' + (micOn ? 'on' : 'off'); m.textContent = micOn ? '🎤 Mic on' : '🎤 Mic off';
+  s.className = 'tog ' + (soundOn ? 'on' : 'off'); s.textContent = soundOn ? '🔊 Som on' : '🔇 Som off';
+}
+$('micBtn').onclick = toggleMic;
+$('sndBtn').onclick = toggleSound;
 
 /* alguém pediu pra assistir minha tela */
 function onIncomingConn(conn){
@@ -663,10 +801,10 @@ function dropViewer(id){
 window.addEventListener('beforeunload', e => { if (stream) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ===================== início ===================== */
+render();
 if (typeof Peer === 'undefined') alert('Não foi possível carregar o PeerJS. Verifique sua internet e recarregue a página.');
 else if (nick) boot();
 else askNick();
-if (!document.pictureInPictureEnabled) $('pipBtn2').classList.add('hidden');
 </script>
 </body>
 </html>

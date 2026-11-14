@@ -445,6 +445,7 @@ const genOf = pid => pid === HUB_ID ? 0 : (pid.startsWith(HUB_ID + '-g') ? +pid.
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 let hubGen = -1, probe = null, pingMs = null, lastPong = 0, hubHost = null, joinTries = 0, joinMsg = 'carregando a sala…', mobileMayClaim = !IS_MOBILE, noClaimUntil = 0;
 let bootAt = 0;
+const badGen = {};   // "porta" que abre mas não responde (dono travado): ignora por um tempo
 
 function boot(){
   renderMe();
@@ -493,7 +494,7 @@ function joinHub(){
   const p = { res: new Array(HUB_GENS).fill(null), conns: [], done: false };
   probe = p;
   const wait = [3000, 4500, 7000, 10000][Math.min(hubTries, 3)]; hubTries++;
-  const closeOthers = keep => p.conns.forEach(c => { if (c !== keep) try { c.close(); } catch(e){} });
+  const closeOthers = keep => p.conns.forEach(c => { if (c && c !== keep) try { c.close(); } catch(e){} });
   p.decide = final => {
     if (p.done) return;
     const g = p.res.indexOf('open');
@@ -505,6 +506,7 @@ function joinHub(){
     else { if (IS_MOBILE) mobileMayClaim = true; setTimeout(joinHub, free >= 0 ? 1500 : 600); }  // celular espera um PC virar dono primeiro
   };
   for (let g = 0; g < HUB_GENS; g++) {
+    if (badGen[g] > Date.now()) { p.res[g] = 'timeout'; continue; }
     const c = me.connect(hubIdOf(g), { reliable: true });
     p.conns[g] = c;
     c.on('open', () => { if (probe === p && !p.done) { p.res[g] = 'open'; p.decide(); } else if (hubConn !== c) { try { c.close(); } catch(e){} } });
@@ -514,7 +516,9 @@ function joinHub(){
 }
 
 function attachHub(c, g){
-  hubConn = c; hubGen = g; hubTries = 0; lastPong = Date.now();
+  hubConn = c; hubGen = g; hubTries = 0; lastPong = 0;
+  // abriu mas o dono não responde = travado: pula essa porta e procura/abre outra
+  setTimeout(() => { if (hubConn === c && !lastPong) { badGen[g] = Date.now() + 60000; hubConn = null; try { c.close(); } catch(e){} joinHub(); } }, 6000);
   c.on('data', d => {
     if (hubConn !== c || !d) return;
     if (d.t === 'list') { hubHost = d.host || null; onList(d.members); }

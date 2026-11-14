@@ -117,6 +117,8 @@
   .unmute.fade{opacity:0;pointer-events:none}
   .flip{position:absolute;right:12px;bottom:56px;width:52px;height:52px;border-radius:50%;border:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);color:#fff;font-size:24px;cursor:pointer;z-index:3;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
   .flip:active{transform:scale(.92)}
+  .stopme{position:absolute;left:12px;bottom:56px;height:44px;padding:0 18px;border-radius:999px;border:0;background:#c0303a;color:#fff;font-weight:800;font-size:15px;cursor:pointer;z-index:3;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+  .stopme:active{transform:scale(.95)}
   .unmute{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:rgba(20,18,28,.88);padding:9px 16px;border-radius:999px;font-size:13px;transition:opacity .4s;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6);z-index:2}
   .center-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;color:var(--mut);background:#000;border-radius:14px;border:1px solid var(--line)}
   .center-msg h1{font-size:46px;line-height:1.05;color:var(--txt);letter-spacing:-1px}
@@ -163,7 +165,7 @@
         <button class="btn main" id="shareBtn">🖥️ Tela</button>
         <button class="btn cam" id="camBtn">📷 Câmera</button>
       </div>
-      <button class="btn stop hidden" id="stopBtn">■ Parar</button>
+      <button class="btn stop hidden" id="stopBtn">■ Parar de compartilhar</button>
       <div class="live-ctl hidden" id="liveCtl">
         <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
         <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
@@ -620,6 +622,7 @@ function addTile(id){
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
     <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
     <button class="flip hidden" title="Virar câmera">🔄</button>
+    <button class="stopme hidden" title="Parar de compartilhar">■ Parar</button>
     <div class="tbar">
       <span class="tstat"></span>
       <button class="ib b-mute" title="Mutar">🔊</button>
@@ -642,8 +645,8 @@ function addTile(id){
     } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
   };
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
-  if (self) q('.flip').onclick = flipCam;
-  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip')) return; toggleFocus(id); });
+  if (self) { q('.flip').onclick = flipCam; q('.stopme').onclick = stopShare; q('.stopme').classList.remove('hidden'); }
+  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip, .stopme')) return; toggleFocus(id); });
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 

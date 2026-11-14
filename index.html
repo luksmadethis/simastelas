@@ -156,7 +156,7 @@
       </div>
       <details class="warn" open>
         <summary>⚠️ le essa porra caralho</summary>
-        <p>marca a porra do <b>COMPARTILHA AUDIO</b> mermao senao vai mudo seu arrombado se escolhe <b>TELA INTERA</b> vai a merda da call junto e <b>DA RETORNO PUTA Q PARIU</b> bah compartilha uma <b>ABA DO CROME</b> cacete uai usa crome ou edge q o resto é bosta avisei fdp vem chora nao oxe foda se vei</p>
+        <p>marca a porra do <b>COMPARTILHA AUDIO</b> mermao senao vai mudo seu arrombado se escolhe <b>TELA INTERA</b> vai a merda da call junto e <b>DA RETORNO PUTA Q PARIU</b> bah compartilha uma <b>ABA DO CROME</b> ou a <b>JANELA DO JOGO</b> cacete uai usa crome ou edge q o resto é bosta avisei fdp vem chora nao oxe foda se vei</p>
       </details>
     </div>
   </aside>
@@ -352,7 +352,7 @@ function joinHub(){
   hubConn = c;
   clearTimeout(hubTimer);
   hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} tryBecomeHub(); } }, 5000);
-  c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); sendState(); });
+  c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); sendState(true); });
   c.on('data', d => {
     if (hubConn !== c || !d) return;
     if (d.t === 'list') onList(d.members);
@@ -362,10 +362,14 @@ function joinHub(){
   c.on('error', () => {});
 }
 
-function sendState(){
-  if (hubConn && hubConn.open) {
-    try { hubConn.send({ t:'state', nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) }); } catch(e){}
-  }
+let lastSent = '';
+function sendState(force){
+  if (!hubConn || !hubConn.open) return;
+  const st = { t:'state', nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
+  const key = JSON.stringify(st);
+  if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
+  lastSent = key;
+  try { hubConn.send(st); } catch(e){}
 }
 
 /* --- o hub: guarda quem tá na sala e avisa todo mundo --- */
@@ -397,9 +401,13 @@ function runHub(h){
       if (d.t === 'state') {
         const ph = (typeof d.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo) && d.photo.length < 40000) ? d.photo : '';
         const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
-        hm.set(c.peer, { conn:c, id:c.peer, nick:String(d.nick || '???').slice(0,20), photo:ph,
-                         sharing:!!d.sharing, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() });
-        bcast();
+        const nu = { conn:c, id:c.peer, nick:String(d.nick || '???').slice(0,20), photo:ph,
+                     sharing:!!d.sharing, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
+        const old = hm.get(c.peer);
+        const same = old && old.conn === c && old.nick === nu.nick && old.photo === nu.photo && old.sharing === nu.sharing &&
+                     old.mic === nu.mic && old.sound === nu.sound && old.watching.join() === nu.watching.join();
+        hm.set(c.peer, nu);
+        if (!same) bcast();
       } else if (d.t === 'ping') {
         const m = hm.get(c.peer); if (m) m.seen = Date.now();
       } else if (d.t === 'bye') {
@@ -661,7 +669,7 @@ async function startShare(){
     s = await navigator.mediaDevices.getDisplayMedia({
       video: { width:{ideal:W, max:W}, height:{ideal:H, max:H}, frameRate:{ideal:60, max:60} },
       audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2, sampleRate:48000, sampleSize:16 },
-      systemAudio: 'include', surfaceSwitching: 'include', selfBrowserSurface: 'exclude'
+      systemAudio: 'include', windowAudio: 'window', surfaceSwitching: 'include', selfBrowserSurface: 'exclude'
     });
   } catch (e) {
     if (e.name !== 'NotAllowedError') alert('Não foi possível capturar a tela: ' + e.message);

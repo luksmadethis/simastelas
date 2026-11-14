@@ -57,7 +57,16 @@
   .member.sel .mtag{color:#c9a7ff}
   .empty-list{color:var(--mut);font-size:13px;text-align:center;padding:20px;display:flex;flex-direction:column;align-items:center;gap:10px}
 
-  .controls{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+  .controls{padding:14px 16px 16px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px;max-height:62vh;overflow:auto}
+  .sm{display:flex;flex-direction:column;gap:8px}
+  #smBtn{width:100%}
+  .sm-opts{display:flex;flex-direction:column;gap:8px;background:#121019;border:1px solid var(--line);border-radius:12px;padding:10px}
+  .sm-row{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mut)}
+  .sm-row>span{width:58px;flex-shrink:0}
+  .sm-row input[type=range]{flex:1;padding:0;accent-color:#9b2bc2;background:none;border:0}
+  .seg{display:flex;gap:4px;flex:1}
+  .seg button{flex:1;border:1px solid #3b3550;background:#24212d;color:#fff;border-radius:8px;padding:6px 0;font-size:14px;cursor:pointer}
+  .seg button.on{background:linear-gradient(90deg,#c0303a,#7a3ad0);border-color:transparent}
   .me{display:flex;align-items:center;gap:8px;font-size:14px}
   .me b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .me .av{width:26px;height:26px;font-size:12px}
@@ -197,6 +206,16 @@
       <div class="live-ctl hidden" id="liveCtl">
         <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
         <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
+      </div>
+      <div class="sm hidden" id="smBox">
+        <button class="tog" id="smBtn" title="Junta tela e câmera numa transmissão só, igual stream (câmera no cantinho)">🎬 Stream mode: juntar tela + câmera</button>
+        <div class="sm-opts hidden" id="smOpts">
+          <div class="sm-row"><span>Lugar</span><div class="seg" data-k="corner"><button data-v="tl">↖</button><button data-v="tr">↗</button><button data-v="bl">↙</button><button data-v="br">↘</button></div></div>
+          <div class="sm-row"><span>Tamanho</span><input type="range" id="smSize" min="12" max="45" step="1"></div>
+          <div class="sm-row"><span>Formato</span><div class="seg" data-k="shape"><button data-v="rect">▭</button><button data-v="round">▢</button><button data-v="circle">◯</button></div></div>
+          <div class="sm-row"><span>Borda</span><div class="seg" data-k="border"><button data-v="rainbow">🌈</button><button data-v="white">⬜</button><button data-v="none">✖</button></div></div>
+          <button class="link-btn" id="smReset" style="align-self:flex-start">↺ voltar pro padrão</button>
+        </div>
       </div>
       <div class="send-stat hidden" id="sendStat"></div>
       <details class="warn" open>
@@ -453,7 +472,7 @@ function joinHub(){
 let lastSent = '';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;
-  const st = { t:'state', cid: CID, nick, photo, sharing: !!B.screen, camId: B.cam ? B.cam.sid : null, mic: micOn, sound: soundOn, watching: order.filter(id => !isSelfSid(id)) };
+  const st = { t:'state', cid: CID, nick, photo, sharing: !!B.screen, camId: (B.cam && !SM) ? B.cam.sid : null, mic: micOn, sound: soundOn, watching: order.filter(id => !isSelfSid(id)) };
   const key = JSON.stringify(st);
   if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
   lastSent = key;
@@ -598,7 +617,7 @@ function sharerIds(){
     if (m.camId) out.push(m.camId);
   }
   if (B.screen) out.push(B.screen.sid);
-  if (B.cam) out.push(B.cam.sid);
+  if (B.cam && !SM) out.push(B.cam.sid);
   return out;
 }
 
@@ -1065,6 +1084,7 @@ async function switchCam(nextId){
   }
   b.stream.removeTrack(ot); b.stream.addTrack(nt);
   b.capture = new MediaStream([nt]);
+  if (SM) { SM.cam.stop(); SM.cam = frameSource(nt); }
   const me_t = tiles.get(b.sid); if (me_t) setTileStream(me_t, b.stream);
   retuneAll(b);
 }
@@ -1139,6 +1159,7 @@ function beginBroadcast(kind, s, peer){
 
 function stopBroadcast(kind){
   const b = B[kind]; if (!b) return;
+  if (SM) stopStreamMode();
   B[kind] = null;
   b.capture.getTracks().forEach(t => t.stop());
   for (const id of [...b.viewers.keys()]) dropViewer(b, id);
@@ -1159,13 +1180,15 @@ function updShareUi(){
   $('stopBtn').classList.toggle('hidden', !(B.screen && B.cam));
   $('sndBtn').classList.toggle('hidden', !B.screen);
   $('liveCtl').classList.toggle('hidden', !anyLive());
+  $('smBox').classList.toggle('hidden', !(B.screen && B.cam));
+  updSmUi();
   $('mode').disabled = $('res').disabled = !!B.screen;
   updLiveCtl(); updFlip();
 }
 
 // o mic vai junto da câmera (ou da tela, se só tiver tela) — nunca nas duas pra não ouvir dobrado
 function routeMic(){
-  const want = micOn ? (B.cam || B.screen) : null;
+  const want = micOn ? ((B.cam && !SM) ? B.cam : (B.screen || B.cam)) : null;
   if (micSrc && micOwner !== want) { try { micSrc.disconnect(); } catch(e){} micSrc = null; micOwner = null; }
   if (!anyLive() && micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; micOn = false; }
   if (want && micStream && !micSrc) { micSrc = want.ctx.createMediaStreamSource(micStream); micSrc.connect(want.mg); micOwner = want; }
@@ -1201,6 +1224,126 @@ function updLiveCtl(){
 }
 $('micBtn').onclick = toggleMic;
 $('sndBtn').onclick = toggleSound;
+
+/* ===================== stream mode: tela + câmera numa transmissão só ===================== */
+const SM_DEF = { corner: 'br', size: 24, shape: 'round', border: 'rainbow' };
+let smCfg = { ...SM_DEF }; try { smCfg = { ...SM_DEF, ...JSON.parse(store.get('simastelas-sm') || '{}') }; } catch(e){}
+let SM = null;   // { canvas, ctx, screen, cam, worker, out, src }
+
+// lê os quadros direto da câmera/tela (funciona mesmo com a aba em segundo plano)
+function frameSource(track){
+  if ('MediaStreamTrackProcessor' in window) {
+    const src = { frame: null, alive: true };
+    const reader = new MediaStreamTrackProcessor({ track }).readable.getReader();
+    (async () => {
+      while (src.alive) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (!src.alive) { value.close(); break; }
+        if (src.frame) src.frame.close();
+        src.frame = value;
+      }
+    })().catch(()=>{});
+    src.img = () => src.frame;
+    src.size = () => src.frame ? [src.frame.displayWidth, src.frame.displayHeight] : [0, 0];
+    src.stop = () => { src.alive = false; reader.cancel().catch(()=>{}); if (src.frame) { src.frame.close(); src.frame = null; } };
+    return src;
+  }
+  const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.srcObject = new MediaStream([track]); v.play().catch(()=>{});
+  return { img: () => v.readyState >= 2 ? v : null, size: () => [v.videoWidth, v.videoHeight], stop: () => { v.srcObject = null; } };
+}
+
+function smPath(ctx, x, y, w, h, shape){
+  ctx.beginPath();
+  if (shape === 'circle') ctx.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2);
+  else if (shape === 'round' && ctx.roundRect) ctx.roundRect(x, y, w, h, Math.min(w, h) * 0.12);
+  else ctx.rect(x, y, w, h);
+}
+function smDraw(){
+  if (!SM) return;
+  const { ctx, canvas } = SM, W = canvas.width, H = canvas.height;
+  const si = SM.screen.img();
+  if (si) ctx.drawImage(si, 0, 0, W, H);
+  const ci = SM.cam.img();
+  if (ci) {
+    const [cw0, ch0] = SM.cam.size();
+    const car = cw0 && ch0 ? cw0 / ch0 : 16/9;
+    const w = W * smCfg.size / 100;
+    const h = smCfg.shape === 'circle' ? w : w / car;
+    const m = Math.round(W * 0.018);
+    const x = smCfg.corner[1] === 'r' ? W - w - m : m;
+    const y = smCfg.corner[0] === 'b' ? H - h - m : m;
+    // recorte "cover": preenche o quadradinho sem esticar
+    const tar = w / h; let sx = 0, sy = 0, sw = cw0, sh = ch0;
+    if (car > tar) { sw = ch0 * tar; sx = (cw0 - sw) / 2; } else { sh = cw0 / tar; sy = (ch0 - sh) / 2; }
+    ctx.save(); smPath(ctx, x, y, w, h, smCfg.shape); ctx.clip();
+    ctx.drawImage(ci, sx, sy, sw, sh, x, y, w, h);
+    ctx.restore();
+    if (smCfg.border !== 'none') {
+      const lw = Math.max(3, W * 0.004);
+      let stroke = '#fff';
+      if (smCfg.border === 'rainbow') { const gr = ctx.createLinearGradient(x, y, x + w, y + h); ['#e40303','#ff8c00','#ffed00','#00a83a','#2a6bff','#9b2bc2'].forEach((c, i) => gr.addColorStop(i / 5, c)); stroke = gr; }
+      ctx.save(); smPath(ctx, x, y, w, h, smCfg.shape); ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); ctx.restore();
+    }
+  }
+  if (SM.out.requestFrame) SM.out.requestFrame();
+}
+
+async function replaceScreenVideo(track){
+  const b = B.screen; if (!b) return;
+  for (const v of b.viewers.values()) {
+    const pc = v.call && v.call.peerConnection;
+    const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
+    if (snd) await snd.replaceTrack(track).catch(()=>{});
+  }
+  const old = b.stream.getVideoTracks()[0];
+  if (old !== track) { b.stream.removeTrack(old); b.stream.addTrack(track); }
+  const t = tiles.get(b.sid); if (t) setTileStream(t, b.stream);
+  retuneAll(b);
+}
+
+function startStreamMode(){
+  if (SM || !B.screen || !B.cam) return;
+  const srcV = B.screen.capture.getVideoTracks()[0];
+  const st = srcV.getSettings();
+  const canvas = document.createElement('canvas');
+  canvas.width = st.width || 1920; canvas.height = st.height || 1080;
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  const cs = canvas.captureStream(0);
+  const out = cs.getVideoTracks()[0];
+  out.contentHint = $('mode').value;
+  // relógio num worker: não para quando a aba vai pro fundo (você jogando)
+  const worker = new Worker(URL.createObjectURL(new Blob(['let i;onmessage=e=>{clearInterval(i);if(e.data)i=setInterval(()=>postMessage(0),e.data)}'], { type: 'text/javascript' })));
+  SM = { canvas, ctx, out, src: srcV, worker, screen: frameSource(srcV), cam: frameSource(B.cam.stream.getVideoTracks()[0]) };
+  worker.onmessage = smDraw;
+  worker.postMessage(Math.round(1000 / Math.min(60, Math.round(st.frameRate || 60))));
+  replaceScreenVideo(out);
+  // a câmera sozinha some da sala (agora ela vai dentro da tela)
+  for (const id of [...B.cam.viewers.keys()]) dropViewer(B.cam, id);
+  removeTile(B.cam.sid);
+  routeMic(); updSmUi(); syncTiles(); sendState();
+}
+function stopStreamMode(){
+  if (!SM) return;
+  const s = SM; SM = null;
+  s.worker.postMessage(0); s.worker.terminate();
+  s.screen.stop(); s.cam.stop();
+  if (B.screen && s.src.readyState === 'live') replaceScreenVideo(s.src);
+  s.out.stop();
+  routeMic(); updSmUi(); syncTiles(); sendState();
+}
+function updSmUi(){
+  $('smBtn').classList.toggle('on', !!SM);
+  $('smBtn').textContent = SM ? '🎬 Stream mode: on (toca pra separar)' : '🎬 Stream mode: juntar tela + câmera';
+  $('smOpts').classList.toggle('hidden', !SM);
+  document.querySelectorAll('#smOpts .seg').forEach(g => g.querySelectorAll('button').forEach(b => b.classList.toggle('on', smCfg[g.dataset.k] === b.dataset.v)));
+  $('smSize').value = smCfg.size;
+}
+function saveSm(){ store.set('simastelas-sm', JSON.stringify(smCfg)); updSmUi(); }
+$('smBtn').onclick = () => SM ? stopStreamMode() : startStreamMode();
+document.querySelectorAll('#smOpts .seg').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { smCfg[g.dataset.k] = b.dataset.v; saveSm(); }));
+$('smSize').oninput = e => { smCfg.size = +e.target.value; saveSm(); };
+$('smReset').onclick = () => { smCfg = { ...SM_DEF }; saveSm(); };
 
 /* alguém pediu pra assistir minha tela ou minha câmera */
 function retuneAll(b){

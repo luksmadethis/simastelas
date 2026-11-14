@@ -1097,8 +1097,9 @@ setInterval(async () => {
   const lines = [];
   for (const b of [B.screen, B.cam]) {
     if (!b) continue;
-    const label = b.kind === 'cam' ? '📷' : '🖥️';
-    const cap = Math.round(b.stream.getVideoTracks()[0]?.getSettings().frameRate || 0);
+    const label = b.kind === 'cam' ? '📷' : (SM ? '🎬' : '🖥️');
+    if (SM && b.kind === 'cam') continue;
+    const cap = (SM && b.kind === 'screen') ? SM.fps : Math.round(b.stream.getVideoTracks()[0]?.getSettings().frameRate || 0);
     const v = [...b.viewers.values()].find(x => x.call && x.call.peerConnection);
     if (!v) { lines.push(`${label} captura ${cap}fps · ninguém assistindo`); continue; }
     try {
@@ -1316,7 +1317,8 @@ function startStreamMode(){
   const worker = new Worker(URL.createObjectURL(new Blob(['let i;onmessage=e=>{clearInterval(i);if(e.data)i=setInterval(()=>postMessage(0),e.data)}'], { type: 'text/javascript' })));
   SM = { canvas, ctx, out, src: srcV, worker, screen: frameSource(srcV), cam: frameSource(B.cam.stream.getVideoTracks()[0]) };
   worker.onmessage = smDraw;
-  worker.postMessage(Math.round(1000 / Math.min(60, Math.round(st.frameRate || 60))));
+  SM.fps = Math.min(60, Math.round(st.frameRate || 60));
+  worker.postMessage(Math.round(1000 / SM.fps));
   replaceScreenVideo(out);
   // a câmera sozinha some da sala (agora ela vai dentro da tela)
   for (const id of [...B.cam.viewers.keys()]) dropViewer(B.cam, id);

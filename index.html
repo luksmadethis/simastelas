@@ -101,7 +101,15 @@
   .chip svg{width:16px;height:12px}
   .stage-top .hint{margin-left:auto;font-size:12px}
   .grid{flex:1;display:grid;gap:10px;min-height:0;position:relative}
-  .tile.click{cursor:zoom-in}.tile.focus{cursor:zoom-out}
+  .tile.click{cursor:zoom-in}
+  .swap{display:none;position:absolute;top:44px;right:10px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:17px;cursor:pointer;z-index:3}
+  .tile.issmall .swap{display:block}
+  .tile.issmall .tname{font-size:11px}
+  .tile.issmall .stopme,.tile.issmall .flip{bottom:10px;height:34px;font-size:12px;padding:0 10px}
+  .pick{display:flex;gap:4px;flex-shrink:0}
+  .pk{border:1px solid #3b3550;background:#24212d;border-radius:8px;padding:4px 7px;font-size:13px;cursor:pointer;opacity:.75}
+  .pk:hover{opacity:1}
+  .pk.on{background:linear-gradient(90deg,#c0303a,#7a3ad0);border-color:transparent;opacity:1}.tile.focus{cursor:zoom-out}
   .tile{background:#000;border-radius:14px;border:1px solid var(--line);position:relative;overflow:hidden;min-height:0;min-width:0}
   .tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
   .tload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a090e}
@@ -320,7 +328,8 @@ const isSelfSid = sid => !!bcOfSid(sid);
 function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) t.el.querySelector('.flip').classList.toggle('hidden', !canFlip); }
 
 // assistindo (grade)
-let focusId = null;           // tela maximizada (null = todas divididas)
+let focus = [];              // telas escolhidas pra ver (vazio = todas divididas)
+let bigPref = null;          // qual fica grande: null = automático, 'none' = tudo igual, ou o id da tela
 const tiles = new Map();     // peerId -> tile
 let order = [];              // ordem das telas na grade
 const skipUntil = {};        // evita reconectar em loop em quem acabou de parar
@@ -519,10 +528,11 @@ function render(){
   for (const m of sorted) {
     const isMe = m.id === myId;
     const live = !!(m.sharing || m.camId);
-    const shown = !!focusId && (focusId === m.id || focusId === m.camId);
+    const mine = [m.sharing && (isMe ? (B.screen && B.screen.sid) : m.id), isMe ? (B.cam && B.cam.sid) : m.camId].filter(Boolean);
+    const shown = mine.some(x => focus.includes(x));
     const el = document.createElement('div');
     el.className = 'member' + (live ? ' can' : '') + (shown ? ' sel' : '');
-    if (live) el.title = shown ? 'Voltar pra todas' : 'Maximizar';
+    if (live) el.title = 'Clica pra ver só essa pessoa. Pra ver junto com outra, clica no outro nome também';
     const av = document.createElement('div'); av.className = 'av' + (live ? ' live' : '');
     setAv(av, m.nick, m.photo);
     const info = document.createElement('div'); info.className = 'mi';
@@ -537,14 +547,24 @@ function render(){
     } else st.textContent = 'online';
     info.append(n, st); el.append(av, info);
     if (live) {
-      if (shown) { const tag = document.createElement('span'); tag.className = 'mtag'; tag.textContent = '⤢ maximizado'; el.appendChild(tag); }
-      const mine = [m.sharing && (isMe ? (B.screen && B.screen.sid) : m.id), m.camId].filter(Boolean);
-      el.onclick = () => shown ? toggleFocus(focusId) : toggleFocus(mine[0]);
+      // um botãozinho por transmissão: clicou entra na seleção, clicou de novo sai
+      const chips = document.createElement('div'); chips.className = 'pick';
+      mine.forEach(sid => {
+        const b = document.createElement('button');
+        const isCam = isCamSid(sid);
+        b.className = 'pk' + (focus.includes(sid) ? ' on' : '');
+        b.textContent = isCam ? '📷' : '🖥️';
+        b.title = focus.includes(sid) ? 'Tirar da seleção' : 'Pôr na seleção (dá pra escolher várias)';
+        b.onclick = e => { e.stopPropagation(); toggleInFocus(sid); };
+        chips.appendChild(b);
+      });
+      el.appendChild(chips);
+      el.onclick = () => { const all = mine.every(x => focus.includes(x)) && focus.length === mine.length; focus = all ? [] : mine.filter(x => order.includes(x)); bigPref = null; layoutGrid(); render(); };
     }
     L.appendChild(el);
   }
   const live = sharerIds().length;
-  $('hint').textContent = !live ? '' : live === 1 ? '1 ao vivo' : focusId ? `${live} ao vivo · clica na tela pra voltar pras ${live}` : `${live} ao vivo · clica numa tela pra maximizar`;
+  $('hint').textContent = !live ? '' : live === 1 ? '1 ao vivo' : focus.length ? `vendo ${focus.length} de ${live} · clica na tela ou em 🖥️/📷 na lista pra mudar` : `${live} ao vivo · clica numa tela pra maximizar, ou escolhe várias na lista (🖥️/📷)`;
   // contadores nas telas
   for (const t of tiles.values()) updateTileInfo(t);
 }
@@ -573,23 +593,43 @@ function syncTiles(){
     addTile(id);
   }
   order.sort((x, y) => avail.indexOf(x) - avail.indexOf(y));
-  if (focusId && !order.includes(focusId)) focusId = null;
+  focus = focus.filter(id => order.includes(id));
   if (waiting) { clearTimeout(syncTiles.t); syncTiles.t = setTimeout(syncTiles, 4200); }
   layoutGrid(); sendState(); render();
 }
 
-// clicou numa tela (ou no nome na lista): maximiza; clicou de novo: volta pra todas
+// clicou numa tela: fica só ela; clicou de novo: volta pra todas
 function toggleFocus(id){
   if (!order.includes(id)) return;
-  focusId = (focusId === id || order.length < 2) ? null : id;
+  focus = (focus.length === 1 && focus[0] === id) || order.length < 2 ? [] : [id];
+  bigPref = null;
   layoutGrid(); render();
 }
+// botãozinho da lista: junta/tira da seleção (várias ao mesmo tempo)
+function toggleInFocus(id){
+  if (!order.includes(id)) return;
+  if (focus.includes(id)) focus = focus.filter(x => x !== id);
+  else focus = [...focus, id];
+  if (focus.length >= order.length) focus = [];
+  layoutGrid(); render();
+}
+function isCamSid(sid){ const b = bcOfSid(sid); if (b) return b.kind === 'cam'; const m = memberOf(sid); return !!(m && m.camId === sid); }
+function ownerOf(sid){ if (isSelfSid(sid)) return myId; const m = memberOf(sid); return m ? m.id : sid; }
+function visIds(){ return focus.length ? order.filter(id => focus.includes(id)) : order; }
+// tela + câmera da mesma pessoa: a tela fica grande e a câmera pequena (dá pra trocar)
+function pickBig(vis){
+  if (vis.length < 2 || bigPref === 'none') return null;
+  if (bigPref && vis.includes(bigPref)) return bigPref;
+  if (vis.length === 2 && ownerOf(vis[0]) === ownerOf(vis[1])) return vis.find(id => !isCamSid(id)) || null;
+  return null;
+}
+function setBig(id){ bigPref = id; layoutGrid(); }
 
 // cada telinha pede só a resolução/fps que cabe nela; tela escondida pede pra pausar
 function calcQ(t){
   const on = t.el.style.display !== 'none' || document.pictureInPictureElement === t.video;
   if (!on) return { on: false };
-  const vis = focusId ? 1 : order.length;
+  const vis = visIds().length;
   const px = Math.max(t.el.clientHeight, t.el.clientWidth * 9 / 16) * (window.devicePixelRatio || 1);
   const h = [180, 360, 540, 720, 1080].find(x => x >= px * 0.9) || 1080;
   return { on: true, h, fps: vis <= 4 ? 60 : 30 };
@@ -608,25 +648,48 @@ document.addEventListener('leavepictureinpicture', updateQualities, true);
 
 function layoutGrid(){
   const g = $('grid');
-  const vis = focusId ? [focusId] : order;
+  const vis = visIds();
   const n = vis.length;
+  const big = pickBig(vis);
+  const narrow = window.innerWidth <= 820;
   $('centerMsg').classList.toggle('hidden', n > 0);
-  const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
-  const rows = Math.max(1, Math.ceil(n / cols));
-  g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
-  g.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
+  const rest = vis.filter(id => id !== big);
+  if (big) {
+    if (narrow) { g.style.gridTemplateColumns = `repeat(${rest.length}, minmax(0,1fr))`; g.style.gridTemplateRows = 'minmax(0,3fr) minmax(0,1fr)'; }
+    else { g.style.gridTemplateColumns = 'minmax(0,3fr) minmax(0,1fr)'; g.style.gridTemplateRows = `repeat(${rest.length}, minmax(0,1fr))`; }
+  } else {
+    const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+    const rows = Math.max(1, Math.ceil(n / cols));
+    g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
+    g.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
+  }
   order.forEach((id, i) => {
     const t = tiles.get(id); if (!t) return;
     const show = vis.includes(id);
-    t.el.style.display = show ? '' : 'none';
-    t.el.style.order = i;
-    t.el.style.gridColumn = (!focusId && n === 3 && vis.indexOf(id) === 2) ? '1 / span 2' : '';
-    t.el.classList.toggle('click', order.length > 1 && !focusId);
-    t.el.classList.toggle('focus', !!focusId);
+    const st = t.el.style;
+    st.display = show ? '' : 'none';
+    st.order = id === big ? -1 : i;
+    if (big && show) {
+      const k = rest.indexOf(id);
+      if (id === big) { st.gridColumn = narrow ? '1 / -1' : '1'; st.gridRow = narrow ? '1' : `1 / span ${rest.length}`; }
+      else { st.gridColumn = narrow ? String(k + 1) : '2'; st.gridRow = narrow ? '2' : String(k + 1); }
+    } else {
+      st.gridRow = '';
+      st.gridColumn = (n === 3 && vis.indexOf(id) === 2) ? '1 / span 2' : '';
+    }
+    t.el.classList.toggle('click', order.length > 1 && !(focus.length === 1 && focus[0] === id));
+    t.el.classList.toggle('focus', focus.length === 1 && focus[0] === id);
+    t.el.classList.toggle('isbig', id === big);
+    t.el.classList.toggle('issmall', !!big && id !== big && show);
+    const bb = t.el.querySelector('.b-big');
+    bb.classList.toggle('hidden', n < 2 || !show);
+    bb.textContent = id === big ? '⊟' : '⬛';
+    bb.title = id === big ? 'Deixar todas do mesmo tamanho' : 'Deixar essa grande';
     applyAudio(t);
   });
   updateQualities();
 }
+window.addEventListener('resize', () => { clearTimeout(layoutGrid.r); layoutGrid.r = setTimeout(layoutGrid, 150); });
 
 function addTile(id){
   if (tiles.has(id)) return;
@@ -636,6 +699,7 @@ function addTile(id){
     <video autoplay playsinline muted></video>
     <div class="tload"><div class="spinner"></div></div>
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
+    <button class="swap" title="Trocar: essa fica grande">⇄</button>
     <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
     <button class="flip hidden" title="Escolher câmera">📷 Escolher câmera</button>
     <button class="stopme hidden" title="Parar de compartilhar">■ Parar</button>
@@ -643,6 +707,7 @@ function addTile(id){
       <span class="tstat"></span>
       <button class="ib b-mute" title="Mutar">🔊</button>
       <input type="range" class="b-vol" min="0" max="1" step="0.01" value="1" title="Volume">
+      <button class="ib b-big" title="Deixar essa grande">⬛</button>
       <button class="ib b-pip" title="Flutuar (fica por cima de tudo)">📌</button>
       <button class="ib b-fs" title="Tela cheia">⛶</button>
     </div>`;
@@ -660,9 +725,11 @@ function addTile(id){
       else await t.video.requestPictureInPicture();
     } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
   };
+  q('.b-big').onclick = () => setBig(el.classList.contains('isbig') ? 'none' : id);
+  q('.swap').onclick = () => setBig(id);
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
   if (self) { const k = bcOfSid(id).kind; q('.flip').onclick = flipCam; q('.stopme').onclick = () => stopBroadcast(k); q('.stopme').textContent = k === 'cam' ? '■ Parar câmera' : '■ Parar tela'; q('.stopme').classList.remove('hidden'); }
-  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip, .stopme')) return; toggleFocus(id); });
+  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip, .stopme, .swap')) return; toggleFocus(id); });
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 
@@ -730,7 +797,7 @@ function unlockAudio(){
 ['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
 function applyAudio(t){
   const v = t.video;
-  v.muted = t.self || t.userMuted || t.blocked || (!!focusId && focusId !== t.id);
+  v.muted = t.self || t.userMuted || t.blocked || (focus.length > 0 && !focus.includes(t.id));
   const b = t.el.querySelector('.b-mute'); if (b) b.textContent = (t.userMuted || v.volume === 0) ? '🔇' : '🔊';
 }
 

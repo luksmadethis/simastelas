@@ -197,6 +197,13 @@
     <button class="btn main" id="nickBtn">Entrar</button>
   </div>
 </div>
+<div class="modal hidden" id="idleModal">
+  <div class="card" style="text-align:center">
+    <h1 style="font-size:24px;margin-bottom:8px">Já tá aberto em <span class="grad">outra aba</span></h1>
+    <p style="color:var(--mut);font-size:14px;margin-bottom:6px" id="idleTxt"></p>
+    <button class="btn main" id="useHere">Usar aqui</button>
+  </div>
+</div>
 <div class="toast hidden" id="toast"></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -249,6 +256,8 @@ const PEER_OPTS = { debug: 1, config: { iceServers: [
 
 /* ===================== estado ===================== */
 let nick = store.get('simastelas-nick') || '';
+let CID = store.get('simastelas-cid'); if (!CID) { CID = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('simastelas-cid', CID); }
+let idle = false;
 let photo = store.get('simastelas-photo') || '';
 let pendingPhoto = photo;
 let me = null, myId = null;
@@ -345,6 +354,7 @@ function setNet(ok, txt){
 }
 
 function joinHub(){
+  if (idle) return;
   if (!me || !me.open) { setTimeout(joinHub, 500); return; }
   if (hubConn) { const old = hubConn; hubConn = null; try { old.close(); } catch(e){} }
   if (!gotList) setNet(false, 'entrando…');
@@ -368,7 +378,7 @@ function joinHub(){
 let lastSent = '';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;
-  const st = { t:'state', nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
+  const st = { t:'state', cid: CID, nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
   const key = JSON.stringify(st);
   if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
   lastSent = key;
@@ -377,6 +387,7 @@ function sendState(force){
 
 /* --- o hub: guarda quem tá na sala e avisa todo mundo --- */
 function tryBecomeHub(){
+  if (idle) return;
   if (hub || becomingHub) { setTimeout(joinHub, 600); return; }
   becomingHub = true;
   const h = new Peer(HUB_ID, PEER_OPTS);
@@ -395,7 +406,13 @@ function tryBecomeHub(){
 function runHub(h){
   const hm = new Map(); // peerId -> {conn,id,nick,photo,sharing,mic,sound,watching,seen}
   const bcast = () => {
-    const list = [...hm.values()].map(({id,nick,photo,sharing,mic,sound,watching}) => ({id,nick,photo,sharing,mic,sound,watching}));
+    // mesmo navegador em 2 abas aparece uma vez só (fica a que transmite, ou a mais nova)
+    const best = new Map();
+    for (const m of hm.values()) {
+      const k = m.cid || m.id, b = best.get(k);
+      if (!b || (m.sharing && !b.sharing) || (m.sharing === b.sharing && m.joined > b.joined)) best.set(k, m);
+    }
+    const list = [...best.values()].map(({id,nick,photo,sharing,mic,sound,watching}) => ({id,nick,photo,sharing,mic,sound,watching}));
     for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list }); } catch(e){}
   };
   h.on('connection', c => {
@@ -404,11 +421,12 @@ function runHub(h){
       if (d.t === 'state') {
         const ph = (typeof d.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo) && d.photo.length < 40000) ? d.photo : '';
         const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
-        const nu = { conn:c, id:c.peer, nick:String(d.nick || '???').slice(0,20), photo:ph,
+        const prev = hm.get(c.peer);
+        const nu = { conn:c, id:c.peer, cid: typeof d.cid === 'string' ? d.cid.slice(0,40) : '', joined: prev && prev.conn === c ? prev.joined : Date.now(), nick:String(d.nick || '???').slice(0,20), photo:ph,
                      sharing:!!d.sharing, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
-        const old = hm.get(c.peer);
+        const old = prev;
         const same = old && old.conn === c && old.nick === nu.nick && old.photo === nu.photo && old.sharing === nu.sharing &&
-                     old.mic === nu.mic && old.sound === nu.sound && old.watching.join() === nu.watching.join();
+                     old.mic === nu.mic && old.cid === nu.cid && old.sound === nu.sound && old.watching.join() === nu.watching.join();
         hm.set(c.peer, nu);
         if (!same) bcast();
       } else if (d.t === 'ping') {
@@ -812,10 +830,52 @@ function dropViewer(id){
 window.addEventListener('beforeunload', e => { if (stream) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ===================== início ===================== */
+/* ===================== uma aba só por navegador ===================== */
+const TAB = Math.random().toString(36).slice(2);
+const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('simastelas-' + ROOM) : null;
+function isActive(){ return !!me && !idle; }
+if (bc) bc.onmessage = e => {
+  const d = e.data || {};
+  if (d.tab === TAB) return;
+  if (d.t === 'hello' && isActive()) bc.postMessage({ t:'here', tab: TAB, sharing: !!stream });
+  if (d.t === 'takeover' && isActive()) goIdle();
+};
+function goIdle(){
+  if (idle) return;
+  idle = true;
+  if (stream) stopShare();
+  for (const id of [...order]) removeTile(id);
+  try { if (hubConn && hubConn.open) hubConn.send({ t:'bye' }); } catch(e){}
+  try { hubApi && hubApi.bye(); } catch(e){}
+  const m = me, h = hub;
+  me = null; hub = null; hubApi = null; hubConn = null; gotList = false; members = [];
+  setTimeout(() => { try { m && m.destroy(); } catch(e){} try { h && h.destroy(); } catch(e){} }, 100);
+  setNet(false, 'pausado');
+  render(); layoutGrid();
+  showIdle('');
+}
+function showIdle(txt){ $('idleTxt').textContent = txt; $('idleTxt').classList.toggle('hidden', !txt); $('idleModal').classList.remove('hidden'); }
+$('useHere').onclick = () => { try { sessionStorage.setItem('simastelas-force', '1'); } catch(e){} location.reload(); };
+
+function start(){
+  if (nick) boot(); else askNick();
+}
 render();
 if (typeof Peer === 'undefined') alert('Não foi possível carregar o PeerJS. Verifique sua internet e recarregue a página.');
-else if (nick) boot();
-else askNick();
+else if (!bc) start();
+else {
+  let force = false; try { force = sessionStorage.getItem('simastelas-force') === '1'; sessionStorage.removeItem('simastelas-force'); } catch(e){}
+  let other = null;
+  const probe = e => { const d = e.data || {}; if (d.t === 'here' && d.tab !== TAB) other = d; };
+  bc.addEventListener('message', probe);
+  bc.postMessage({ t:'hello', tab: TAB });
+  setTimeout(() => {
+    bc.removeEventListener('message', probe);
+    if (other && other.sharing && !force) { idle = true; setNet(false, 'pausado'); showIdle('e tá transmitindo lá'); return; }
+    bc.postMessage({ t:'takeover', tab: TAB });   // a aba nova assume, a velha pausa
+    start();
+  }, 250);
+}
 </script>
 </body>
 </html>

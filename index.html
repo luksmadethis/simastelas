@@ -116,7 +116,7 @@
   .ib:hover{background:rgba(255,255,255,.26)}
   .tbar input[type=range]{width:80px;padding:0;accent-color:#9b2bc2;background:none;border:0}
   .unmute.fade{opacity:0;pointer-events:none}
-  .flip{position:absolute;right:12px;bottom:56px;width:52px;height:52px;border-radius:50%;border:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);color:#fff;font-size:24px;cursor:pointer;z-index:3;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+  .flip{position:absolute;right:12px;bottom:56px;height:44px;padding:0 16px;border-radius:999px;border:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);color:#fff;font-size:14px;font-weight:700;cursor:pointer;z-index:3;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
   .flip:active{transform:scale(.92)}
   .stopme{position:absolute;left:12px;bottom:56px;height:44px;padding:0 18px;border-radius:999px;border:0;background:#c0303a;color:#fff;font-weight:800;font-size:15px;cursor:pointer;z-index:3;box-shadow:0 4px 20px rgba(0,0,0,.5)}
   .stopme:active{transform:scale(.95)}
@@ -634,7 +634,7 @@ function addTile(id){
     <div class="tload"><div class="spinner"></div></div>
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
     <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
-    <button class="flip hidden" title="Virar câmera">🔄</button>
+    <button class="flip hidden" title="Escolher câmera">📷 Escolher câmera</button>
     <button class="stopme hidden" title="Parar de compartilhar">■ Parar</button>
     <div class="tbar">
       <span class="tstat"></span>
@@ -812,17 +812,21 @@ async function startCam(){
   }
   if (!cams.length) return toast('Não achei câmera');
   if (cams.length === 1) return openCam(cams[0].deviceId);
+  showCamPicker(cams, openCam);
+}
+function showCamPicker(cams, onPick){
   const box = $('camList'); box.innerHTML = '';
+  const cur = B.cam && B.cam.stream.getVideoTracks()[0]?.getSettings().deviceId;
   const last = store.get('simastelas-cam');
   const names = cams.map(camName);
   const seen = {};
   cams.forEach((c, i) => {
     const b = document.createElement('button');
-    b.className = 'btn cam-opt' + (c.deviceId === last ? ' last' : '');
+    b.className = 'btn cam-opt' + (c.deviceId === (cur || last) ? ' last' : '');
     const nm = names[i], dup = names.filter(x => x === nm).length > 1;
     seen[nm] = (seen[nm] || 0) + 1;
     b.textContent = dup ? `${nm} ${seen[nm]}` : nm;
-    b.onclick = () => { $('camModal').classList.add('hidden'); openCam(c.deviceId); };
+    b.onclick = () => { $('camModal').classList.add('hidden'); onPick(c.deviceId); };
     box.appendChild(b);
   });
   $('camModal').classList.remove('hidden');
@@ -848,15 +852,19 @@ async function openCam(id){
   toast(micOn ? 'Câmera on!' : 'Câmera on! Liga o 🎤 se quiser falar');
   canFlip = (await listCams()).length > 1; updFlip();
 }
-// virar = vai pra próxima câmera da lista
+// escolher câmera durante a transmissão: abre a lista e troca sem derrubar quem tá assistindo
 async function flipCam(){
-  const b = B.cam; if (!b) return;
+  if (!B.cam) return;
   const cams = await listCams();
   if (cams.length < 2) return;
+  showCamPicker(cams, switchCam);
+}
+async function switchCam(nextId){
+  const b = B.cam; if (!b) return;
   const ot = b.stream.getVideoTracks()[0];
   const cur = ot.getSettings().deviceId;
-  const i = cams.findIndex(c => c.deviceId === cur);
-  const next = cams[(i + 1) % cams.length];
+  if (nextId === cur) return;
+  const next = { deviceId: nextId };
   ot.stop();                                   // alguns celulares só abrem uma câmera por vez
   let s;
   try { s = await getCam(next.deviceId); store.set('simastelas-cam', next.deviceId); }

@@ -1568,10 +1568,12 @@ function fxDraw(){
   const { W, H, ctx } = f, now = performance.now();
   f.wctx.drawImage(img, 0, 0, W, H);
   // detecção a ~30 por segundo (o desenho segue no ritmo da câmera)
-  if (now - f.lastDet > 32) {
-    f.lastDet = now;
-    if (fxCfg.face !== 'none' && MP.face) { try { f.faces = MP.face.detectForVideo(f.work, now).faceLandmarks || []; } catch(e){} }
-    if (fxCfg.bg !== 'none' && MP.seg) {
+  // rosto e fundo se revezam pra não pesar (cada um ~15-20x por segundo, o desenho continua liso)
+  if (now - f.lastDet > 28) {
+    f.lastDet = now; f.turn = !f.turn;
+    const doFace = fxCfg.face !== 'none' && MP.face && (f.turn || fxCfg.bg === 'none' || !MP.seg);
+    if (doFace) { try { f.faces = MP.face.detectForVideo(f.work, now).faceLandmarks || []; } catch(e){} }
+    else if (fxCfg.bg !== 'none' && MP.seg) {
       f.sctx.drawImage(f.work, 0, 0, f.sw, f.sh);
       try { const r = MP.seg.segmentForVideo(f.small, now); buildMask(f, r); r.close && r.close(); } catch(e){}
     }

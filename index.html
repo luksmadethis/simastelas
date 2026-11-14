@@ -386,10 +386,13 @@ async function loadTurn(){
     if (Array.isArray(list) && list.length) PEER_OPTS.config.iceServers = [...PEER_OPTS.config.iceServers.filter(s => !/peerjs\.com/.test(JSON.stringify(s.urls))), ...list];
   } catch(e) { console.warn('turn', e); }
 }
+const MT = { username: '548494ace23c20cd695390e4', credential: '8J1k5FjHjBiCcjCh' };   // servidor de apoio (Metered, 20 GB/mês grátis)
 const PEER_OPTS = { debug: 1, config: { iceServers: [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
-  { urls: 'turn:us-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' }
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun.relay.metered.ca:80'] },
+  { urls: 'turn:global.relay.metered.ca:80', ...MT },
+  { urls: 'turn:global.relay.metered.ca:80?transport=tcp', ...MT },
+  { urls: 'turn:global.relay.metered.ca:443', ...MT },
+  { urls: 'turns:global.relay.metered.ca:443?transport=tcp', ...MT }
 ]}};
 
 /* ===================== estado ===================== */

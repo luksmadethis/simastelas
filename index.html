@@ -33,7 +33,6 @@
   .grad{background:var(--rainbow);-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
 
   .app{flex:1;display:grid;grid-template-columns:300px 1fr;min-height:0}
-  @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{order:-1;padding:10px}.grid{min-height:58vh;flex:none;height:58vh}.side{border-right:0;border-top:1px solid var(--line)}.list{max-height:40vh}.chip{padding:7px 10px}.center-msg h1{font-size:34px}}
 
   /* ---------- lateral ---------- */
   .side{background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
@@ -130,6 +129,7 @@
   .photo-pick.has{border:2px solid #9b2bc2}
   .photo-row .link-btn{font-size:13px;padding:3px 0}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24212d;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;z-index:99}
+  @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{order:-1;padding:10px}.grid{min-height:58vh;flex:none;height:58vh}.side{border-right:0;border-top:1px solid var(--line)}.list{max-height:40vh}.center-msg h1{font-size:34px}}
 </style>
 </head>
 <body>

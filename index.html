@@ -444,7 +444,7 @@ const hubIdOf = g => g ? `${HUB_ID}-g${g}` : HUB_ID;
 const genOf = pid => pid === HUB_ID ? 0 : (pid.startsWith(HUB_ID + '-g') ? +pid.slice(HUB_ID.length + 2) : -1);
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 let hubGen = -1, probe = null, pingMs = null, lastPong = 0, hubHost = null, joinTries = 0, joinMsg = 'carregando a sala…', mobileMayClaim = !IS_MOBILE, noClaimUntil = 0;
-let bootAt = 0;
+let bootAt = 0, hubPongs = false, hubAlive = 0;
 const badGen = {};   // "porta" que abre mas não responde (dono travado): ignora por um tempo
 
 function boot(){
@@ -470,7 +470,7 @@ function boot(){
   setInterval(() => {
     if (!hubConn || !hubConn.open) return;
     try { hubConn.send({ t:'ping', ts: performance.now() }); } catch(e){}
-    if (lastPong && Date.now() - lastPong > 15000) { const c = hubConn; hubConn = null; try { c.close(); } catch(e){} lastPong = 0; setNet(false, 'a sala travou, procurando…'); joinHub(); }
+    if (hubPongs && lastPong && Date.now() - lastPong > 20000) { const c = hubConn; hubConn = null; try { c.close(); } catch(e){} lastPong = 0; setNet(false, 'a sala travou, procurando…'); joinHub(); }
   }, 4000);
   // servidor de conexão não respondeu
   setTimeout(() => { if (me && !me.open && !idle) { joinMsg = 'não tá conseguindo falar com o servidor de conexão. pode ser a internet ou a rede bloqueando (tenta o 4G ou outra wi-fi)'; render(); } }, 7000);
@@ -516,13 +516,14 @@ function joinHub(){
 }
 
 function attachHub(c, g){
-  hubConn = c; hubGen = g; hubTries = 0; lastPong = 0;
-  // abriu mas o dono não responde = travado: pula essa porta e procura/abre outra
-  setTimeout(() => { if (hubConn === c && !lastPong) { badGen[g] = Date.now() + 60000; hubConn = null; try { c.close(); } catch(e){} joinHub(); } }, 6000);
+  hubConn = c; hubGen = g; hubTries = 0; lastPong = 0; hubPongs = false; hubAlive = 0;
+  // abriu mas o dono não manda nada (nem a lista) = travado: pula essa porta e procura outra
+  setTimeout(() => { if (hubConn === c && !hubAlive) { badGen[g] = Date.now() + 60000; hubConn = null; try { c.close(); } catch(e){} joinHub(); } }, 8000);
   c.on('data', d => {
     if (hubConn !== c || !d) return;
+    hubAlive = Date.now();
     if (d.t === 'list') { hubHost = d.host || null; onList(d.members); }
-    else if (d.t === 'pong') { lastPong = Date.now(); pingMs = Math.round(performance.now() - d.ts); if (gotList) setNet(true, onlineLabel()); }
+    else if (d.t === 'pong') { lastPong = Date.now(); hubPongs = true; pingMs = Math.round(performance.now() - d.ts); if (gotList) setNet(true, onlineLabel()); }
     else if (d.t === 'hubbye') { hubConn = null; try { c.close(); } catch(e){} setNet(false, 'reconectando…'); setTimeout(joinHub, (IS_MOBILE ? 1800 : 150) + Math.random()*700); }
   });
   c.on('close', () => { if (hubConn !== c) return; hubConn = null; setNet(false, 'reconectando…'); setTimeout(joinHub, 200 + Math.random()*1000); });

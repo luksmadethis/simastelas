@@ -583,7 +583,7 @@ function sendQ(t, force){
   t.lastQ = k;
   try { t.conn.send({ t:'q', ...q }); } catch(e){}
 }
-function updateQualities(){ cancelAnimationFrame(updateQualities.r); updateQualities.r = requestAnimationFrame(() => { for (const t of tiles.values()) sendQ(t); }); }
+function updateQualities(){ clearTimeout(updateQualities.r); updateQualities.r = setTimeout(() => { for (const t of tiles.values()) sendQ(t); }, 60); }
 new ResizeObserver(updateQualities).observe(document.getElementById('grid'));
 document.addEventListener('enterpictureinpicture', updateQualities, true);
 document.addEventListener('leavepictureinpicture', updateQualities, true);

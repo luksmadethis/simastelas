@@ -828,8 +828,8 @@ function toggleSound(){
 }
 function updLiveCtl(){
   const m = $('micBtn'), s = $('sndBtn');
-  m.className = 'tog ' + (micOn ? 'on' : 'off'); m.textContent = micOn ? '🎤 Mic on' : '🎤 Mic off';
-  s.className = 'tog ' + (soundOn ? 'on' : 'off'); s.textContent = soundOn ? '🔊 Som on' : '🔇 Som off';
+  m.classList.toggle('on', micOn); m.classList.toggle('off', !micOn); m.textContent = micOn ? '🎤 Mic on' : '🎤 Mic off';
+  s.classList.toggle('on', soundOn); s.classList.toggle('off', !soundOn); s.textContent = soundOn ? '🔊 Som on' : '🔇 Som off';
 }
 $('micBtn').onclick = toggleMic;
 $('sndBtn').onclick = toggleSound;

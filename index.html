@@ -375,6 +375,17 @@ function hqVideoSdp(sdp){
 }
 const hqSdp = sdp => hqVideoSdp(hqAudioSdp(sdp));
 
+// servidor de apoio (TURN) da Metered: quando tiver a chave, preenche aqui
+const TURN = { app: '', key: '' };   // ex.: app: 'simastelas' (de simastelas.metered.live), key: 'a chave da API'
+async function loadTurn(){
+  if (!TURN.app || !TURN.key) return;
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch(`https://${TURN.app}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(TURN.key)}`, { signal: ctl.signal });
+    const list = await r.json();
+    if (Array.isArray(list) && list.length) PEER_OPTS.config.iceServers = [...PEER_OPTS.config.iceServers.filter(s => !/peerjs\.com/.test(JSON.stringify(s.urls))), ...list];
+  } catch(e) { console.warn('turn', e); }
+}
 const PEER_OPTS = { debug: 1, config: { iceServers: [
   { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
@@ -2028,7 +2039,8 @@ function goIdle(){
 function showIdle(txt){ $('idleTxt').textContent = txt; $('idleTxt').classList.toggle('hidden', !txt); $('idleModal').classList.remove('hidden'); }
 $('useHere').onclick = () => { try { sessionStorage.setItem('simastelas-force', '1'); } catch(e){} location.reload(); };
 
-function start(){
+async function start(){
+  await loadTurn();
   if (nick) boot(); else askNick();
 }
 render();

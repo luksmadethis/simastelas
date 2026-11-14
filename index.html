@@ -968,6 +968,7 @@ function addTile(id){
   t.gone = gone;
   // vigia: se a transmissão não chegar, tenta de novo sozinho e avisa o que tá rolando
   t.tries = (failCount[id] || 0);
+  if (t.tries > 0 && t.tries < 3) { const ld = t.el.querySelector('.tload'); ld.innerHTML = '<div style="text-align:center;padding:16px;color:#ccc;font-size:13px"><div class="spinner sm" style="margin:0 auto 8px"></div><span></span></div>'; ld.querySelector('span').textContent = `não conectou com ${nickOf(id)}… tentando de novo (${t.tries})`; }
   setTimeout(() => {
     if (tiles.get(id) !== t || t.gotStream) return;
     failCount[id] = (failCount[id] || 0) + 1;

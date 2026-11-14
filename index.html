@@ -76,6 +76,8 @@
   .send-stat{font-size:11.5px;color:var(--mut);line-height:1.4}
   .share-row{display:flex;gap:8px}
   .share-row .btn{flex:1;padding:13px 10px}
+  .cam-opt{background:#24212d;border:1px solid #3b3550;justify-content:flex-start;font-size:14px}
+  .cam-opt.last{border-color:#9b2bc2}
   .btn.cam{background:#24212d;border:1px solid #3b3550}
   .tog{flex:1;border:1px solid var(--line);background:#24212d;color:var(--txt);border-radius:10px;padding:10px 8px;font-size:13px;font-weight:700;cursor:pointer}
   .tog.on{background:#16361f;border-color:#1f6b34;color:#7dffa5}
@@ -210,6 +212,13 @@
     <button class="btn main" id="useHere">Usar aqui</button>
   </div>
 </div>
+<div class="modal hidden" id="camModal">
+  <div class="card">
+    <h1 style="font-size:24px;margin-bottom:14px">Qual <span class="grad">câmera</span>?</h1>
+    <div id="camList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <button class="link-btn" style="margin-top:14px" onclick="document.getElementById('camModal').classList.add('hidden')">cancelar</button>
+  </div>
+</div>
 <div class="toast hidden" id="toast"></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -266,7 +275,7 @@ function hqVideoSdp(sdp){
   const rank = c => ({ H264:0, VP9:1, AV1:2, VP8:3 })[c] ?? 9;
   pts.sort((a,b) => rank(codec[a]) - rank(codec[b]));
   L[mi] = [...head, ...pts].join(' ');
-  const extra = 'x-google-start-bitrate=5000;x-google-min-bitrate=2500;x-google-max-bitrate=14000';
+  const extra = 'x-google-start-bitrate=1500;x-google-max-bitrate=14000';
   for (const pt of pts) {
     if (rank(codec[pt]) > 3) continue;
     const fi = L.findIndex(l => l.startsWith('a=fmtp:' + pt + ' '));
@@ -558,6 +567,27 @@ function toggleFocus(id){
   layoutGrid(); render();
 }
 
+// cada telinha pede só a resolução/fps que cabe nela; tela escondida pede pra pausar
+function calcQ(t){
+  const on = t.el.style.display !== 'none' || document.pictureInPictureElement === t.video;
+  if (!on) return { on: false };
+  const vis = focusId ? 1 : order.length;
+  const px = Math.max(t.el.clientHeight, t.el.clientWidth * 9 / 16) * (window.devicePixelRatio || 1);
+  const h = [180, 360, 540, 720, 1080].find(x => x >= px * 0.9) || 1080;
+  return { on: true, h, fps: vis <= 4 ? 60 : 30 };
+}
+function sendQ(t, force){
+  if (t.self || !t.conn || !t.conn.open) return;
+  const q = calcQ(t), k = JSON.stringify(q);
+  if (!force && k === t.lastQ) return;
+  t.lastQ = k;
+  try { t.conn.send({ t:'q', ...q }); } catch(e){}
+}
+function updateQualities(){ cancelAnimationFrame(updateQualities.r); updateQualities.r = requestAnimationFrame(() => { for (const t of tiles.values()) sendQ(t); }); }
+new ResizeObserver(updateQualities).observe(document.getElementById('grid'));
+document.addEventListener('enterpictureinpicture', updateQualities, true);
+document.addEventListener('leavepictureinpicture', updateQualities, true);
+
 function layoutGrid(){
   const g = $('grid');
   const vis = focusId ? [focusId] : order;
@@ -577,6 +607,7 @@ function layoutGrid(){
     t.el.classList.toggle('focus', !!focusId);
     applyAudio(t);
   });
+  updateQualities();
 }
 
 function addTile(id){
@@ -624,6 +655,7 @@ function addTile(id){
   if (self) { setTileStream(t, stream); updFlip(); return; }
   const c = me.connect(id, { reliable: true, metadata: { t: 'watch' } });
   t.conn = c;
+  c.on('open', () => sendQ(t, true));
   const gone = () => { if (tiles.get(id) === t) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); } };
   c.on('close', gone);
   c.on('error', () => {});
@@ -659,7 +691,7 @@ function setTileStream(t, s){
   const v = t.video, q = sel => t.el.querySelector(sel);
   v.srcObject = s;
   q('.tload').classList.add('hidden');
-  if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && facing === 'user') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
+  if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && (s.getVideoTracks()[0]?.getSettings().facingMode || 'user') !== 'environment') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;
   applyAudio(t);
   v.play().catch(() => {
@@ -728,42 +760,73 @@ $('camBtn').onclick = () => { if (!stream) startCam(); };
 $('stopBtn').onclick = () => stopShare();
 if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) $('shareBtn').classList.add('hidden');  // celular: só câmera
 
-async function getCam(f){
-  const hd = $('res').value === '1080';
+// câmera: 720p (60fps se ela aguentar). 1080p de câmera pesava demais com muita gente
+async function getCam(deviceId){
+  const base = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user' };
   const tries = [
-    ...(hd ? [{ width:{ideal:1920}, height:{ideal:1080}, frameRate:{min:50, ideal:60} }] : []),
     { width:{ideal:1280}, height:{ideal:720}, frameRate:{min:50, ideal:60} },
-    { width:{ideal: hd ? 1920 : 1280}, height:{ideal: hd ? 1080 : 720}, frameRate:{ideal:60} }
+    { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+    {}
   ];
   let err;
   for (const v of tries) {
-    try { return await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:f, ...v } }); }
+    try { return await navigator.mediaDevices.getUserMedia({ audio:false, video:{ ...base, ...v } }); }
     catch(e) { err = e; if (e.name === 'NotAllowedError') throw e; }
   }
   throw err;
 }
+async function listCams(){
+  try { return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput'); } catch(e){ return []; }
+}
+function camName(c, i){
+  const l = c.label || '';
+  if (/front|frontal|user/i.test(l)) return '🤳 Câmera da frente';
+  if (/back|rear|traseira|environment/i.test(l)) return '📷 Câmera de trás' + (/\d/.test(l) ? ' (' + l.replace(/.*?(\d+).*/, '$1') + ')' : '');
+  return '🎥 ' + (l.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '') || 'Câmera ' + (i + 1));
+}
 async function startCam(){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert('Esse navegador não deixa usar a câmera.');
+  let cams = await listCams();
+  if (!cams.length || !cams[0].label) {          // ainda sem permissão: pede uma vez pra ver os nomes
+    try { const tmp = await navigator.mediaDevices.getUserMedia({ video: true }); tmp.getTracks().forEach(t => t.stop()); }
+    catch(e) { toast(e.name === 'NotAllowedError' ? 'Libera a câmera aí, primo' : 'Não achei câmera'); return; }
+    cams = await listCams();
+  }
+  if (!cams.length) return toast('Não achei câmera');
+  if (cams.length === 1) return openCam(cams[0].deviceId);
+  const box = $('camList'); box.innerHTML = '';
+  const last = store.get('simastelas-cam');
+  cams.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'btn cam-opt' + (c.deviceId === last ? ' last' : '');
+    b.textContent = camName(c, i);
+    b.onclick = () => { $('camModal').classList.add('hidden'); openCam(c.deviceId); };
+    box.appendChild(b);
+  });
+  $('camModal').classList.remove('hidden');
+}
+async function openCam(id){
   let s;
-  try { s = await getCam(facing); }
-  catch(e) { toast(e.name === 'NotAllowedError' ? 'Libera a câmera aí, primo' : 'Não achei câmera: ' + e.message); return; }
+  try { s = await getCam(id); }
+  catch(e) { toast(e.name === 'NotAllowedError' ? 'Libera a câmera aí, primo' : 'Essa câmera não abriu, tenta outra'); return; }
+  store.set('simastelas-cam', id || '');
   beginShare(s, 'cam');
   toast('Câmera on! Liga o 🎤 se quiser falar');
-  try {
-    const devs = await navigator.mediaDevices.enumerateDevices();
-    const many = devs.filter(d => d.kind === 'videoinput').length > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent);
-    canFlip = many; updFlip();
-  } catch(e){}
+  canFlip = (await listCams()).length > 1; updFlip();
 }
+// virar = vai pra próxima câmera da lista
 async function flipCam(){
   if (!stream || shareKind !== 'cam') return;
-  const nf = facing === 'user' ? 'environment' : 'user';
+  const cams = await listCams();
+  if (cams.length < 2) return;
   const ot = stream.getVideoTracks()[0];
+  const cur = ot.getSettings().deviceId;
+  const i = cams.findIndex(c => c.deviceId === cur);
+  const next = cams[(i + 1) % cams.length];
   ot.stop();                                   // alguns celulares só abrem uma câmera por vez
-  let s, ok = true;
-  try { s = await getCam(nf); }
-  catch(e) { ok = false; try { s = await getCam(facing); } catch(e2){ stopShare(); return; } toast('Não deu pra virar a câmera'); }
-  if (ok) facing = nf;
+  let s;
+  try { s = await getCam(next.deviceId); store.set('simastelas-cam', next.deviceId); }
+  catch(e) { try { s = await getCam(cur); } catch(e2){ stopShare(); return; } toast('Não deu pra virar a câmera'); }
   const nt = s.getVideoTracks()[0];
   nt.contentHint = 'motion';
   nt.addEventListener('ended', stopShare);
@@ -775,8 +838,8 @@ async function flipCam(){
   stream.removeTrack(ot); stream.addTrack(nt);
   capture = new MediaStream([nt]);
   const me_t = tiles.get(myId); if (me_t) setTileStream(me_t, stream);
+  retuneAll();
 }
-
 
 const WHY = { cpu:'PC no limite 🔥', bandwidth:'internet no limite 🐌', none:'de boa ✅', other:'limitado' };
 setInterval(async () => {
@@ -892,8 +955,16 @@ $('micBtn').onclick = toggleMic;
 $('sndBtn').onclick = toggleSound;
 
 /* alguém pediu pra assistir minha tela */
+const wantQ = new Map();   // peerId -> {on,h,fps} pedido por quem assiste
+function retuneAll(){ for (const v of viewers.values()) if (v.call && v.call.peerConnection) tuneSenders(v.call.peerConnection, v.call.peer); }
 function onIncomingConn(conn){
   if (!conn.metadata || conn.metadata.t !== 'watch') { conn.close(); return; }
+  conn.on('data', d => {
+    if (!d || d.t !== 'q') return;
+    wantQ.set(conn.peer, { on: d.on !== false, h: +d.h || 540, fps: +d.fps || 30 });
+    const v = viewers.get(conn.peer);
+    if (v && v.call && v.call.peerConnection) tuneSenders(v.call.peerConnection, conn.peer);
+  });
   conn.on('open', () => {
     if (!stream) { conn.close(); return; }
     const id = conn.peer;
@@ -902,41 +973,55 @@ function onIncomingConn(conn){
     viewers.set(id, { conn, call });
     const pc = call.peerConnection;
     pc.addEventListener('connectionstatechange', () => {
-      if (pc.connectionState === 'connected') tuneSenders(pc);
+      if (pc.connectionState === 'connected') retuneAll();
       if (['failed','closed'].includes(pc.connectionState)) dropViewer(id);
     });
-    setTimeout(() => tuneSenders(pc), 1500);
+    tuneSenders(pc, id); setTimeout(retuneAll, 1500);
     call.on('close', () => { const v = viewers.get(id); if (v && v.call === call) dropViewer(id); });
   });
   conn.on('close', () => { const v = viewers.get(conn.peer); if (v && v.conn === conn) dropViewer(conn.peer); });
   conn.on('error', () => {});
 }
 
-async function tuneSenders(pc){
+async function tuneSenders(pc, peerId){
   const hd = $('res').value === '1080';
   const motion = $('mode').value === 'motion';
+  const cam = shareKind === 'cam';
+  const q = wantQ.get(peerId) || { on: true, h: 540, fps: 30 };
+  const n = Math.max(1, viewers.size);
+  // upload total dividido entre quem assiste (câmera de celular não aguenta 12 Mbps x 9)
+  const budget = (cam ? 14e6 : 40e6) / n;
   for (const sender of pc.getSenders()) {
     if (!sender.track) continue;
     const p = sender.getParameters();
     if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+    const e = p.encodings[0];
     if (sender.track.kind === 'video') {
-      p.encodings[0].maxBitrate = hd ? 12_000_000 : 6_000_000;
-      p.encodings[0].maxFramerate = 60;
-      p.encodings[0].scaleResolutionDownBy = 1;
-      p.degradationPreference = motion ? 'maintain-framerate' : 'maintain-resolution';
+      const srcH = sender.track.getSettings().height || (cam ? 720 : 1080);
+      const srcW = sender.track.getSettings().width || srcH * 16 / 9;
+      const short = Math.min(srcH, srcW);                  // celular em pé: o lado menor manda
+      const h = Math.min(q.h, short);
+      const fps = Math.min(q.fps, 60);
+      const full = hd ? 12e6 : 6e6;
+      const table = h <= 200 ? 350e3 : h <= 380 ? 800e3 : h <= 560 ? 1.6e6 : h <= 740 ? 3e6 : full;
+      e.active = q.on;
+      e.scaleResolutionDownBy = Math.max(1, short / h);
+      e.maxFramerate = fps;
+      e.maxBitrate = Math.round(Math.max(250e3, Math.min(table * (fps >= 50 ? 1.4 : 1), budget, cam ? 4e6 : full)));
+      p.degradationPreference = (motion || cam) ? 'maintain-framerate' : 'maintain-resolution';
     } else {
-      p.encodings[0].maxBitrate = 510_000;
-      p.encodings[0].priority = 'high';
-      p.encodings[0].networkPriority = 'high';
+      e.maxBitrate = cam ? (n > 3 ? 64e3 : 128e3) : (n > 5 ? 192e3 : 510e3);
+      e.priority = 'high';
+      e.networkPriority = 'high';
     }
-    try { await sender.setParameters(p); } catch (e) { console.warn('setParameters', e); }
+    try { await sender.setParameters(p); } catch (err) { console.warn('setParameters', err); }
   }
 }
 
 function dropViewer(id){
   const v = viewers.get(id);
   if (!v) return;
-  viewers.delete(id);
+  viewers.delete(id); wantQ.delete(id); setTimeout(retuneAll, 200);
   try { v.call && v.call.close(); } catch(e){}
   try { v.conn && v.conn.close(); } catch(e){}
 }

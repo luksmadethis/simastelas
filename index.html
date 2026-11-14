@@ -252,7 +252,7 @@ let nick = store.get('simastelas-nick') || '';
 let photo = store.get('simastelas-photo') || '';
 let pendingPhoto = photo;
 let me = null, myId = null;
-let hubConn = null, hubTimer = null, gotList = false;
+let hubConn = null, hubTimer = null, gotList = false, hubTries = 0;
 let hub = null, hubApi = null, becomingHub = false;
 let members = [];
 
@@ -351,8 +351,11 @@ function joinHub(){
   const c = me.connect(HUB_ID, { reliable: true });
   hubConn = c;
   clearTimeout(hubTimer);
-  hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} tryBecomeHub(); } }, 5000);
-  c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); sendState(true); });
+  // 1ª tentativa espera pouco (pega o caso do F5), depois vai aumentando pra quem tem internet lenta
+  const wait = [2500, 4000, 7000, 10000][Math.min(hubTries, 3)];
+  hubTries++;
+  hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} joinHub(); } }, wait);
+  c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); hubTries = 0; sendState(true); });
   c.on('data', d => {
     if (hubConn !== c || !d) return;
     if (d.t === 'list') onList(d.members);

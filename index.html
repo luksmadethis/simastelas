@@ -462,7 +462,7 @@ $('photoInput').onchange = e => {
   img.onerror = () => toast('Essa imagem não rolou, tenta outra');
   img.src = URL.createObjectURL(f);
 };
-const isVip = n => /^luketa$/i.test((n || '').trim());
+const isVip = n => false;   // destaque de nome desligado
 function renderMe(){ $('meNick').textContent = nick; $('meNick').classList.toggle('vip', isVip(nick)); setAv($('meAv'), nick, photo); }
 function askNick(){
   pendingPhoto = photo; showPhotoPreview();

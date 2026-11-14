@@ -966,7 +966,27 @@ function addTile(id){
   c.on('close', gone);
   c.on('error', () => {});
   t.gone = gone;
+  // vigia: se a transmissão não chegar, tenta de novo sozinho e avisa o que tá rolando
+  t.tries = (failCount[id] || 0);
+  setTimeout(() => {
+    if (tiles.get(id) !== t || t.gotStream) return;
+    failCount[id] = (failCount[id] || 0) + 1;
+    const n = failCount[id];
+    const ld = t.el.querySelector('.tload');
+    ld.innerHTML = '<div style="text-align:center;padding:16px;color:#ccc;font-size:13px;line-height:1.5"><div class="spinner sm" style="margin:0 auto 8px"></div><span></span></div>';
+    ld.querySelector('span').textContent = n < 3
+      ? `não conectou com ${nickOf(id)}… tentando de novo (${n})`
+      : `não tá rolando conectar com ${nickOf(id)}. A rede de um de vocês tá bloqueando conexão direta. Abre o 📶 e manda o diagnóstico.`;
+    // recria a conexão (mantém o aviso na tela)
+    t.gone = null;
+    try { t.conn && t.conn.removeAllListeners && t.conn.removeAllListeners('close'); } catch(e){}
+    try { t.call && t.call.close(); } catch(e){}
+    try { t.conn && t.conn.close(); } catch(e){}
+    t.call = null;
+    setTimeout(() => { if (tiles.get(id) !== t || t.gotStream) return; tiles.delete(id); order = order.filter(x => x !== id); t.dead = true; t.el.remove(); syncTiles(); }, n < 3 ? 300 : 6000);
+  }, 12000);
 }
+const failCount = {};
 
 function removeTile(id){
   const t = tiles.get(id);
@@ -996,6 +1016,7 @@ function onIncomingCall(call){
 function setTileStream(t, s){
   const v = t.video, q = sel => t.el.querySelector(sel);
   v.srcObject = s;
+  t.gotStream = true; if (!t.self) failCount[t.id] = 0;
   q('.tload').classList.add('hidden');
   if (t.self) { v.muted = true; v.style.transform = (bcOfSid(t.id)?.kind === 'cam' && (s.getVideoTracks()[0]?.getSettings().facingMode || 'user') !== 'environment') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;

@@ -122,7 +122,8 @@
   .tile.floating .tbar{padding:6px;gap:4px}
   .tile.floating .ib{padding:4px 6px;font-size:11px}
   .tile.floating .b-vol{width:50px}
-  .tile.floating .stopme,.tile.floating .flip{bottom:8px;height:30px;font-size:11px;padding:0 9px}
+  .tile.floating .stopme{bottom:8px;height:30px;font-size:11px;padding:0 9px}
+  .tile.floating .camctl{bottom:8px}.tile.floating .camctl button{height:30px;font-size:11px;padding:0 9px}
   .tile.floating .unmute{bottom:8px;font-size:11px;padding:6px 10px}
   .rz{display:none;position:absolute;right:0;bottom:0;width:24px;height:24px;cursor:nwse-resize;z-index:6;touch-action:none;
       background:linear-gradient(135deg,transparent 52%,rgba(255,255,255,.75) 52% 58%,transparent 58% 68%,rgba(255,255,255,.75) 68% 74%,transparent 74%)}
@@ -130,7 +131,8 @@
   .swap{display:none;position:absolute;top:44px;right:10px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:17px;cursor:pointer;z-index:3}
   .tile.issmall .swap{display:block}
   .tile.issmall .tname{font-size:11px}
-  .tile.issmall .stopme,.tile.issmall .flip{bottom:10px;height:34px;font-size:12px;padding:0 10px}
+  .tile.issmall .stopme{bottom:10px;height:34px;font-size:12px;padding:0 10px}
+  .tile.issmall .camctl{bottom:10px}.tile.issmall .camctl button{height:34px;font-size:12px;padding:0 10px}
   .pick{display:flex;gap:4px;flex-shrink:0}
   .pk{border:1px solid #3b3550;background:#24212d;border-radius:8px;padding:4px 7px;font-size:13px;cursor:pointer;opacity:.75}
   .pk:hover{opacity:1}
@@ -151,8 +153,10 @@
   .ib:hover{background:rgba(255,255,255,.26)}
   .tbar input[type=range]{width:80px;padding:0;accent-color:#9b2bc2;background:none;border:0}
   .unmute.fade{opacity:0;pointer-events:none}
-  .flip{position:absolute;right:12px;bottom:56px;height:44px;padding:0 16px;border-radius:999px;border:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);color:#fff;font-size:14px;font-weight:700;cursor:pointer;z-index:3;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
-  .flip:active{transform:scale(.92)}
+  .camctl{position:absolute;right:12px;bottom:56px;display:flex;gap:8px;z-index:3}
+  .camctl button{height:44px;padding:0 14px;border-radius:999px;border:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+  .camctl .fxb{background:linear-gradient(90deg,#c0303a,#7a3ad0)}
+  .camctl button:active{transform:scale(.94)}
   .stopme{position:absolute;left:12px;bottom:56px;height:44px;padding:0 18px;border-radius:999px;border:0;background:#c0303a;color:#fff;font-weight:800;font-size:15px;cursor:pointer;z-index:3;box-shadow:0 4px 20px rgba(0,0,0,.5)}
   .stopme:active{transform:scale(.95)}
   .unmute{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:rgba(20,18,28,.88);padding:9px 16px;border-radius:999px;font-size:13px;transition:opacity .4s;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6);z-index:2}
@@ -182,8 +186,13 @@
   .ping.g{background:#123d22;color:#5dff8f}.ping.o{background:#43300f;color:#ffb347}.ping.r{background:#4a1520;color:#ff6b7f}
   .vip{background:linear-gradient(90deg,#ff2a2a,#ff9a1a,#ffe600,#1fd15a,#3d7bff,#c04dff,#ff2a2a);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;font-weight:900!important;animation:vipRoll 2.2s linear infinite}
   @keyframes vipRoll{from{background-position:0% 0}to{background-position:200% 0}}
+  .fxh{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:8px 0 6px}
+  .fxgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px;max-height:36vh;overflow:auto}
+  .fxgrid button{border:1px solid #3b3550;background:#24212d;color:#fff;border-radius:12px;padding:8px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px}
+  .fxgrid button b{font-size:24px;font-weight:400;line-height:1.1}
+  .fxgrid button.on{background:linear-gradient(135deg,#c0303a,#7a3ad0);border-color:transparent}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24212d;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;z-index:99}
-  @media(max-width:480px){.stopme,.flip{height:40px;padding:0 12px;font-size:13px}}
+  @media(max-width:480px){.stopme,.camctl button{height:40px;padding:0 11px;font-size:13px}}
   @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{order:-1;padding:10px}.grid{min-height:58vh;flex:none;height:58vh}.side{border-right:0;border-top:1px solid var(--line)}.list{max-height:40vh}.center-msg h1{font-size:34px}}
 </style>
 </head>
@@ -216,6 +225,7 @@
       <div class="live-ctl hidden" id="liveCtl">
         <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
         <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
+        <button class="tog" id="fxSideBtn" title="Efeitos na câmera">✨ Efeitos</button>
       </div>
       <div class="sm hidden" id="smBox">
         <button class="tog" id="smBtn" title="Junta tela e câmera numa transmissão só, igual stream (câmera no cantinho)">🎬 Stream mode: juntar tela + câmera</button>
@@ -287,6 +297,15 @@
       <button class="btn cam" id="diagCopy" style="flex:1;padding:10px">📋 Copiar pra mandar no Discord</button>
       <button class="btn cam" id="diagClose" style="width:auto;padding:10px 18px">Fechar</button>
     </div>
+  </div>
+</div>
+<div class="modal hidden" id="fxModal">
+  <div class="card" style="max-width:520px">
+    <h1 style="font-size:22px;margin-bottom:6px">✨ <span class="grad">Efeitos</span></h1>
+    <div id="fxStatus" style="font-size:12px;color:var(--mut);margin-bottom:10px">escolhe um do rosto e um do fundo, dá pra juntar os dois</div>
+    <h4 class="fxh">Rosto</h4><div class="fxgrid" id="fxFace"></div>
+    <h4 class="fxh">Fundo</h4><div class="fxgrid" id="fxBg"></div>
+    <button class="btn cam" id="fxClose" style="margin-top:14px;padding:10px">Pronto</button>
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -381,7 +400,7 @@ let micStream = null, micOn = false, micSrc = null, micOwner = null, soundOn = t
 const anyLive = () => !!(B.screen || B.cam);
 const bcOfSid = sid => (B.screen && sid === B.screen.sid) ? B.screen : (B.cam && sid === B.cam.sid) ? B.cam : null;
 const isSelfSid = sid => !!bcOfSid(sid);
-function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) t.el.querySelector('.flip').classList.toggle('hidden', !canFlip); }
+function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) { t.el.querySelector('.camctl').classList.remove('hidden'); t.el.querySelector('.flip').classList.toggle('hidden', !canFlip); } }
 
 // assistindo (grade)
 let focus = [];              // telas escolhidas pra ver (vazio = todas divididas)
@@ -873,7 +892,7 @@ function addTile(id){
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
     <button class="swap" title="Trocar: essa fica grande">⇄</button>
     <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
-    <button class="flip hidden" title="Escolher câmera">📷 Escolher câmera</button>
+    <div class="camctl hidden"><button class="fxb" title="Efeitos na câmera">✨ Efeitos</button><button class="flip hidden" title="Escolher câmera">📷 Câmera</button></div>
     <button class="stopme hidden" title="Parar de compartilhar">■ Parar</button>
     <div class="tbar">
       <span class="tstat"></span>
@@ -900,8 +919,8 @@ function addTile(id){
   q('.b-big').onclick = () => setBig(el.classList.contains('isbig') ? 'none' : id);
   q('.swap').onclick = () => setBig(id);
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
-  if (self) { const k = bcOfSid(id).kind; q('.flip').onclick = flipCam; q('.stopme').onclick = () => stopBroadcast(k); q('.stopme').textContent = k === 'cam' ? '■ Parar câmera' : '■ Parar tela'; q('.stopme').classList.remove('hidden'); }
-  el.addEventListener('click', e => { if (el.classList.contains('floating') || e.target.closest('.tbar, .unmute, .flip, .stopme, .swap')) return; toggleFocus(id); });
+  if (self) { const k = bcOfSid(id).kind; q('.flip').onclick = flipCam; q('.fxb').onclick = openFx; q('.stopme').onclick = () => stopBroadcast(k); q('.stopme').textContent = k === 'cam' ? '■ Parar câmera' : '■ Parar tela'; q('.stopme').classList.remove('hidden'); }
+  el.addEventListener('click', e => { if (el.classList.contains('floating') || e.target.closest('.tbar, .unmute, .camctl, .stopme, .swap')) return; toggleFocus(id); });
   el.addEventListener('pointerdown', e => {
     if (!el.classList.contains('floating') || (e.target.closest('button, input') && !e.target.closest('.rz'))) return;
     e.preventDefault();
@@ -1163,7 +1182,7 @@ async function flipCam(){
 }
 async function switchCam(nextId){
   const b = B.cam; if (!b) return;
-  const ot = b.stream.getVideoTracks()[0];
+  const ot = b.rawTrack || b.stream.getVideoTracks()[0];
   const cur = ot.getSettings().deviceId;
   if (nextId === cur) return;
   const next = { deviceId: nextId };
@@ -1175,16 +1194,10 @@ async function switchCam(nextId){
   const nt = s.getVideoTracks()[0];
   nt.contentHint = 'motion';
   nt.addEventListener('ended', () => { if (B.cam === b) stopBroadcast('cam'); });
-  for (const v of b.viewers.values()) {
-    const pc = v.call && v.call.peerConnection;
-    const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
-    if (snd) await snd.replaceTrack(nt).catch(()=>{});
-  }
-  b.stream.removeTrack(ot); b.stream.addTrack(nt);
+  b.rawTrack = nt;
   b.capture = new MediaStream([nt]);
-  if (SM) { SM.cam.stop(); SM.cam = frameSource(nt); }
-  const me_t = tiles.get(b.sid); if (me_t) setTileStream(me_t, b.stream);
-  retuneAll(b);
+  if (FX) { FX.src.stop(); FX.src = frameSource(nt); }   // com efeito: só troca a entrada do efeito
+  else await setCamVideo(nt);
 }
 
 const WHY = { cpu:'PC no limite 🔥', bandwidth:'internet no limite 🐌', none:'de boa ✅', other:'limitado' };
@@ -1245,6 +1258,7 @@ function beginBroadcast(kind, s, peer){
   at.contentHint = kind === 'cam' ? 'speech' : 'music';
   const b = { kind, peer, sid: peer.id, capture: s, stream: new MediaStream([v, at]), ctx, sg, mg, hasScreenAudio: !!sa, viewers: new Map(), wantQ: new Map() };
   B[kind] = b;
+  if (kind === 'cam') b.rawTrack = v;
   v.addEventListener('ended', () => { if (B[kind] === b) stopBroadcast(kind); });
   if (kind === 'cam') {
     peer.on('connection', c => serveConn(c, 'cam'));
@@ -1256,11 +1270,13 @@ function beginBroadcast(kind, s, peer){
   updShareUi(); syncTiles(); sendState();
   // stream mode é o padrão: ligou tela + câmera, já junta (dá pra separar no botão)
   if (B.screen && B.cam && !SM && store.get('simastelas-smauto') !== '0') startStreamMode();
+  if (kind === 'cam' && fxActive()) applyFx();
 }
 
 function stopBroadcast(kind){
   const b = B[kind]; if (!b) return;
   if (SM) stopStreamMode();
+  if (kind === 'cam') stopFx(true);
   B[kind] = null;
   b.capture.getTracks().forEach(t => t.stop());
   for (const id of [...b.viewers.keys()]) dropViewer(b, id);
@@ -1280,6 +1296,7 @@ function updShareUi(){
   $('stopBtn').textContent = '■ Parar tudo';
   $('stopBtn').classList.toggle('hidden', !(B.screen && B.cam));
   $('sndBtn').classList.toggle('hidden', !B.screen);
+  $('fxSideBtn').classList.toggle('hidden', !B.cam);
   $('liveCtl').classList.toggle('hidden', !anyLive());
   $('smBox').classList.toggle('hidden', !(B.screen && B.cam));
   updSmUi();
@@ -1446,6 +1463,329 @@ $('smBtn').onclick = () => { if (SM) { stopStreamMode(); store.set('simastelas-s
 document.querySelectorAll('#smOpts .seg').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { smCfg[g.dataset.k] = b.dataset.v; saveSm(); }));
 $('smSize').oninput = e => { smCfg.size = +e.target.value; saveSm(); };
 $('smReset').onclick = () => { smCfg = { ...SM_DEF }; saveSm(); };
+
+/* ===================== efeitos da câmera (MediaPipe) ===================== */
+const MP_VER = '1.2.3';
+const MP_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}`;
+const MP = { mod: null, vision: null, face: null, seg: null };
+const FX_FACE = [
+  ['none','🚫','Nada'], ['dino','🦖','Dinossauro'], ['dragon','🐲','Dragão'], ['frog','🐸','Sapo'], ['monkey','🐵','Macaco'],
+  ['pig','🐷','Porco'], ['alien','👽','Alien'], ['robot','🤖','Robô'], ['skull','💀','Caveira'], ['pumpkin','🎃','Abóbora'],
+  ['dog','🐶','Cachorro'], ['cat','🐱','Gato'], ['clown','🤡','Palhaço'], ['devil','😈','Chifrinho'], ['crown','👑','Coroa'],
+  ['glasses','😎','Óculos'], ['mustache','🥸','Bigode'], ['hearts','😍','Olho de coração'], ['laser','🔴','Olho de laser'],
+  ['rainbow','🌈','Vomita arco-íris'], ['bighead','🎉','Cabeção'], ['bigeyes','👀','Olhão']
+];
+const FX_BG = [['none','🚫','Nada'], ['blur','🌫️','Desfocado'], ['flag','🏳️‍🌈','Arco-íris'], ['party','🪩','Balada'], ['space','🌌','Espaço']];
+let fxCfg = { face: 'none', bg: 'none' }; try { fxCfg = { ...fxCfg, ...JSON.parse(store.get('simastelas-fx') || '{}') }; } catch(e){}
+let FX = null;
+const fxActive = () => fxCfg.face !== 'none' || fxCfg.bg !== 'none';
+
+async function loadMP(needFace, needSeg){
+  if (!MP.vision) {
+    MP.mod = await import(`${MP_URL}/vision_bundle.mjs`);
+    MP.vision = await MP.mod.FilesetResolver.forVisionTasks(`${MP_URL}/wasm`);
+  }
+  const make = async (Cls, opts) => {
+    try { return await Cls.createFromOptions(MP.vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'GPU' } }); }
+    catch(e) { return await Cls.createFromOptions(MP.vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'CPU' } }); }
+  };
+  if (needFace && !MP.face) MP.face = await make(MP.mod.FaceLandmarker, { runningMode: 'VIDEO', numFaces: 3,
+    baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task' } });
+  if (needSeg && !MP.seg) MP.seg = await make(MP.mod.ImageSegmenter, { runningMode: 'VIDEO', outputConfidenceMasks: true, outputCategoryMask: false,
+    baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite' } });
+}
+
+// troca o vídeo que sai da câmera (crua ↔ com efeito) sem derrubar ninguém
+async function setCamVideo(track){
+  const b = B.cam; if (!b) return;
+  for (const v of b.viewers.values()) {
+    const pc = v.call && v.call.peerConnection;
+    const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
+    if (snd) await snd.replaceTrack(track).catch(()=>{});
+  }
+  const old = b.stream.getVideoTracks()[0];
+  if (old !== track) { b.stream.removeTrack(old); b.stream.addTrack(track); }
+  if (SM) { SM.cam.stop(); SM.cam = frameSource(track); }
+  const t = tiles.get(b.sid); if (t) setTileStream(t, b.stream);
+  retuneAll(b);
+}
+
+let fxLoading = false;
+async function applyFx(){
+  store.set('simastelas-fx', JSON.stringify(fxCfg));
+  renderFxGrid();
+  if (!B.cam) return;
+  if (!fxActive()) { stopFx(); return; }
+  const needFace = fxCfg.face !== 'none', needSeg = fxCfg.bg !== 'none';
+  if ((needFace && !MP.face) || (needSeg && !MP.seg)) {
+    if (fxLoading) return;
+    fxLoading = true; $('fxStatus').textContent = '⏳ carregando os efeitos (só demora na primeira vez)…';
+    try { await loadMP(needFace, needSeg); $('fxStatus').textContent = 'escolhe um do rosto e um do fundo, dá pra juntar os dois'; }
+    catch(e) { $('fxStatus').textContent = '❌ não deu pra carregar os efeitos: ' + (e.message || e); fxLoading = false; return; }
+    fxLoading = false;
+    if (!B.cam) return;
+  }
+  if (!FX) startFx();
+}
+
+function startFx(){
+  const b = B.cam; if (!b || FX) return;
+  const raw = b.rawTrack;
+  const st = raw.getSettings();
+  const W = st.width || 1280, H = st.height || 720;
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const canvas = mk(W, H), work = mk(W, H), person = mk(W, H);
+  const sw = 256, sh = Math.max(64, Math.round(256 * H / W));
+  const small = mk(sw, sh), mask = mk(sw, sh);
+  const out = canvas.captureStream(0).getVideoTracks()[0];
+  out.contentHint = 'motion';
+  const worker = new Worker(URL.createObjectURL(new Blob(['let i;onmessage=e=>{clearInterval(i);if(e.data)i=setInterval(()=>postMessage(0),e.data)}'], { type: 'text/javascript' })));
+  FX = { W, H, canvas, ctx: canvas.getContext('2d'), work, wctx: work.getContext('2d', { willReadFrequently: false }), person, pctx: person.getContext('2d'),
+         small, sctx: small.getContext('2d', { willReadFrequently: true }), mask, mctx: mask.getContext('2d'), sw, sh,
+         out, worker, src: frameSource(raw), faces: [], smooth: [], lastDet: 0, maskReady: false, invert: null, img: null, stars: null };
+  worker.onmessage = fxDraw;
+  worker.postMessage(Math.round(1000 / Math.min(60, Math.round(st.frameRate || 30))));
+  setCamVideo(out);
+}
+function stopFx(silent){
+  if (!FX) return;
+  const f = FX; FX = null;
+  f.worker.postMessage(0); f.worker.terminate();
+  f.src.stop();
+  if (!silent && B.cam && B.cam.rawTrack && B.cam.rawTrack.readyState === 'live') setCamVideo(B.cam.rawTrack);
+  setTimeout(() => f.out.stop(), 500);
+}
+function resizeFx(f, W, H){
+  f.W = W; f.H = H; f.canvas.width = f.work.width = f.person.width = W; f.canvas.height = f.work.height = f.person.height = H;
+  f.sh = Math.max(64, Math.round(256 * H / W)); f.small.height = f.mask.height = f.sh; f.maskReady = false; f.img = null;
+}
+
+function fxDraw(){
+  const f = FX; if (!f) return;
+  const img = f.src.img(); if (!img) return;
+  const [iw, ih] = f.src.size();
+  if (iw && ih && (iw !== f.W || ih !== f.H)) resizeFx(f, iw, ih);
+  const { W, H, ctx } = f, now = performance.now();
+  f.wctx.drawImage(img, 0, 0, W, H);
+  // detecção a ~30 por segundo (o desenho segue no ritmo da câmera)
+  if (now - f.lastDet > 32) {
+    f.lastDet = now;
+    if (fxCfg.face !== 'none' && MP.face) { try { f.faces = MP.face.detectForVideo(f.work, now).faceLandmarks || []; } catch(e){} }
+    if (fxCfg.bg !== 'none' && MP.seg) {
+      f.sctx.drawImage(f.work, 0, 0, f.sw, f.sh);
+      try { const r = MP.seg.segmentForVideo(f.small, now); buildMask(f, r); r.close && r.close(); } catch(e){}
+    }
+  }
+  if (fxCfg.bg !== 'none' && f.maskReady) {
+    drawBg(f, now);
+    f.pctx.globalCompositeOperation = 'copy'; f.pctx.drawImage(f.work, 0, 0);
+    f.pctx.globalCompositeOperation = 'destination-in'; f.pctx.filter = 'blur(3px)'; f.pctx.drawImage(f.mask, 0, 0, W, H); f.pctx.filter = 'none';
+    f.pctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(f.person, 0, 0);
+  } else ctx.drawImage(f.work, 0, 0);
+  if (fxCfg.face !== 'none') f.faces.forEach((lm, i) => drawFace(f, lm, i, now));
+  if (f.out.requestFrame) f.out.requestFrame();
+}
+
+function buildMask(f, r){
+  const ms = r.confidenceMasks; if (!ms || !ms.length) return;
+  const m = ms.length > 1 ? ms[1] : ms[0];
+  const a = m.getAsFloat32Array(), w = m.width, h = m.height;
+  if (f.mask.width !== w || f.mask.height !== h) { f.mask.width = w; f.mask.height = h; f.img = null; }
+  if (!f.img) f.img = f.mctx.createImageData(w, h);
+  // descobre sozinho se a máscara veio "pessoa = 1" ou "fundo = 1" (meio da imagem costuma ser a pessoa)
+  if (f.invert == null || Math.random() < 0.01) {
+    let cIn = 0, cOut = 0, nIn = 0, nOut = 0;
+    for (let y = 0; y < h; y += 4) for (let x = 0; x < w; x += 4) {
+      const v = a[y * w + x], center = Math.abs(x - w/2) < w * 0.18 && y > h * 0.25;
+      const edge = x < w * 0.08 || x > w * 0.92;
+      if (center) { cIn += v; nIn++; } else if (edge) { cOut += v; nOut++; }
+    }
+    if (nIn && nOut) f.invert = (cIn / nIn) < (cOut / nOut);
+  }
+  const d = f.img.data;
+  for (let i = 0, j = 3; i < a.length; i++, j += 4) { const v = f.invert ? 1 - a[i] : a[i]; d[j] = v * 255; }
+  f.mctx.putImageData(f.img, 0, 0);
+  f.maskReady = true;
+}
+
+const FLAG = ['#e40303','#ff8c00','#ffed00','#008026','#004dff','#750787'];
+function drawBg(f, now){
+  const { ctx, W, H } = f;
+  if (fxCfg.bg === 'blur') { ctx.filter = 'blur(6px)'; ctx.drawImage(f.small, 0, 0, W, H); ctx.filter = 'none'; return; }
+  if (fxCfg.bg === 'flag') {
+    const sh = H / 6, wave = Math.sin(now / 600) * H * 0.01;
+    FLAG.forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(0, i * sh + wave * (i % 2 ? 1 : -1), W, sh + 2); });
+    return;
+  }
+  if (fxCfg.bg === 'party') {
+    ctx.fillStyle = '#0a0612'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 7; i++) {
+      const t = now / 1000 + i * 1.3;
+      const x = W * (0.5 + 0.45 * Math.sin(t * 0.9 + i)), y = H * (0.5 + 0.45 * Math.cos(t * 0.7 + i * 2));
+      const g = ctx.createRadialGradient(x, y, 0, x, y, W * 0.28);
+      g.addColorStop(0, FLAG[i % 6] + 'cc'); g.addColorStop(1, FLAG[i % 6] + '00');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    return;
+  }
+  if (fxCfg.bg === 'space') {
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0b0626'); g.addColorStop(0.5, '#2a0d4a'); g.addColorStop(1, '#03122e');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    if (!f.stars) f.stars = Array.from({ length: 140 }, () => [Math.random(), Math.random(), Math.random() * 2 + 0.5, Math.random() * 6]);
+    ctx.fillStyle = '#fff';
+    for (const [x, y, r, p] of f.stars) { ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(now / 700 + p)); ctx.beginPath(); ctx.arc(x * W, y * H, r * W / 1280, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// pontos do rosto (MediaPipe Face Mesh): 10 testa, 152 queixo, 234/454 laterais, 1 ponta do nariz, 13/14 lábios, 33/133 e 263/362 cantos dos olhos
+function faceGeo(f, lm, idx){
+  const { W, H } = f, P = i => ({ x: lm[i].x * W, y: lm[i].y * H });
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const eL = P(33), eR = P(263), top = P(10), chin = P(152), sL = P(234), sR = P(454);
+  const raw = {
+    ang: Math.atan2(eR.y - eL.y, eR.x - eL.x),
+    w: d(sL, sR), h: d(top, chin),
+    cx: (sL.x + sR.x) / 2, cy: (top.y + chin.y) / 2
+  };
+  // suaviza pra não tremer
+  const s = f.smooth[idx] || raw, k = 0.55;
+  const g = { ang: s.ang + (raw.ang - s.ang) * k, w: s.w + (raw.w - s.w) * k, h: s.h + (raw.h - s.h) * k, cx: s.cx + (raw.cx - s.cx) * k, cy: s.cy + (raw.cy - s.cy) * k };
+  f.smooth[idx] = g;
+  g.P = P; g.d = d;
+  g.eyeA = { x: (P(33).x + P(133).x) / 2, y: (P(33).y + P(133).y) / 2 };
+  g.eyeB = { x: (P(263).x + P(362).x) / 2, y: (P(263).y + P(362).y) / 2 };
+  g.nose = P(1); g.top = top; g.chin = chin; g.mouthU = P(13); g.mouthL = P(14); g.lipTop = P(0); g.underNose = P(2);
+  g.cheekA = P(205); g.cheekB = P(425);
+  g.open = d(P(13), P(14)) / g.h;
+  return g;
+}
+function emoji(ctx, ch, x, y, size, ang){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang || 0);
+  ctx.font = `${Math.round(size)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, 0, 0); ctx.restore();
+}
+// ponto relativo ao rosto: u = pros lados (fração da largura), v = pra cima (fração da altura)
+const rel = (g, u, v) => ({ x: g.cx + Math.cos(g.ang) * u * g.w + Math.sin(g.ang) * v * g.h, y: g.cy + Math.sin(g.ang) * u * g.w - Math.cos(g.ang) * v * g.h });
+
+function drawFace(f, lm, idx, now){
+  const g = faceGeo(f, lm, idx), ctx = f.ctx, e = fxCfg.face;
+  const masks = { dino: '🦖', dragon: '🐲', frog: '🐸', monkey: '🐵', pig: '🐷', alien: '👽', robot: '🤖', skull: '💀', pumpkin: '🎃' };
+  if (masks[e]) { const c = rel(g, 0, 0.08); emoji(ctx, masks[e], c.x, c.y, g.h * 1.5, g.ang); return; }
+  if (e === 'glasses') { const c = { x: (g.eyeA.x + g.eyeB.x) / 2, y: (g.eyeA.y + g.eyeB.y) / 2 }; emoji(ctx, '🕶️', c.x, c.y + g.h * 0.02, g.w * 0.95, g.ang); return; }
+  if (e === 'crown') { const c = rel(g, 0, 0.62); emoji(ctx, '👑', c.x, c.y, g.w * 0.8, g.ang); return; }
+  if (e === 'hearts') { const s = g.w * 0.3 * (1 + 0.12 * Math.sin(now / 150)); emoji(ctx, '❤️', g.eyeA.x, g.eyeA.y, s, g.ang); emoji(ctx, '❤️', g.eyeB.x, g.eyeB.y, s, g.ang); return; }
+  if (e === 'devil') {
+    ctx.fillStyle = '#d4142a';
+    for (const sgn of [-1, 1]) {
+      const base = rel(g, sgn * 0.22, 0.42), tip = rel(g, sgn * 0.34, 0.78), side = rel(g, sgn * 0.08, 0.5);
+      ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.quadraticCurveTo(rel(g, sgn * 0.36, 0.55).x, rel(g, sgn * 0.36, 0.55).y, tip.x, tip.y); ctx.quadraticCurveTo(rel(g, sgn * 0.2, 0.62).x, rel(g, sgn * 0.2, 0.62).y, side.x, side.y); ctx.closePath(); ctx.fill();
+    }
+    return;
+  }
+  if (e === 'dog' || e === 'cat') {
+    ctx.save();
+    for (const sgn of [-1, 1]) {
+      if (e === 'dog') {
+        const c = rel(g, sgn * 0.42, 0.42);
+        ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(g.ang + sgn * 0.5);
+        ctx.fillStyle = '#7a4a24'; ctx.beginPath(); ctx.ellipse(0, g.h * 0.12, g.w * 0.16, g.h * 0.3, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#a8703f'; ctx.beginPath(); ctx.ellipse(0, g.h * 0.14, g.w * 0.09, g.h * 0.22, 0, 0, 7); ctx.fill(); ctx.restore();
+      } else {
+        const a = rel(g, sgn * 0.12, 0.45), b = rel(g, sgn * 0.42, 0.42), tip = rel(g, sgn * 0.33, 0.85);
+        ctx.fillStyle = '#2b2b2b'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(tip.x, tip.y); ctx.lineTo(b.x, b.y); ctx.closePath(); ctx.fill();
+        const a2 = rel(g, sgn * 0.18, 0.48), b2 = rel(g, sgn * 0.37, 0.46), t2 = rel(g, sgn * 0.31, 0.74);
+        ctx.fillStyle = '#ff9fc2'; ctx.beginPath(); ctx.moveTo(a2.x, a2.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(b2.x, b2.y); ctx.closePath(); ctx.fill();
+      }
+    }
+    // nariz
+    ctx.fillStyle = e === 'dog' ? '#141414' : '#ff7fae';
+    ctx.beginPath(); ctx.ellipse(g.nose.x, g.nose.y, g.w * (e === 'dog' ? 0.11 : 0.06), g.w * (e === 'dog' ? 0.07 : 0.045), g.ang, 0, 7); ctx.fill();
+    if (e === 'cat') {
+      ctx.strokeStyle = '#222'; ctx.lineWidth = Math.max(2, g.w * 0.012);
+      for (const sgn of [-1, 1]) for (const k of [-1, 0, 1]) {
+        const s0 = rel(g, sgn * 0.12, -0.12 + k * 0.03), s1 = rel(g, sgn * 0.55, -0.08 + k * 0.08);
+        ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
+      }
+    }
+    if (e === 'dog' && g.open > 0.04) {
+      ctx.fillStyle = '#ff6b8f';
+      ctx.beginPath(); ctx.ellipse(g.mouthL.x, g.mouthL.y + g.h * 0.1, g.w * 0.1, g.h * 0.14 * Math.min(1, g.open * 8), g.ang, 0, 7); ctx.fill();
+    }
+    ctx.restore(); return;
+  }
+  if (e === 'clown') {
+    ctx.save();
+    for (const [c, col] of [[g.cheekA, '#ff5a7a'], [g.cheekB, '#ff5a7a']]) { const gr = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, g.w * 0.14); gr.addColorStop(0, col + 'aa'); gr.addColorStop(1, col + '00'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c.x, c.y, g.w * 0.14, 0, 7); ctx.fill(); }
+    // peruca colorida
+    for (let i = 0; i < 14; i++) { const u = -0.55 + i * (1.1 / 13), v = 0.55 + 0.12 * Math.sin(i * 1.7); const p = rel(g, u, v); ctx.fillStyle = FLAG[i % 6]; ctx.beginPath(); ctx.arc(p.x, p.y, g.w * 0.13, 0, 7); ctx.fill(); }
+    const gr = ctx.createRadialGradient(g.nose.x - g.w * 0.03, g.nose.y - g.w * 0.03, 1, g.nose.x, g.nose.y, g.w * 0.1);
+    gr.addColorStop(0, '#ff8a8a'); gr.addColorStop(1, '#d10010'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.nose.x, g.nose.y, g.w * 0.1, 0, 7); ctx.fill();
+    ctx.restore(); return;
+  }
+  if (e === 'mustache') {
+    const c = { x: (g.underNose.x + g.lipTop.x) / 2, y: (g.underNose.y + g.lipTop.y) / 2 }, w = g.w * 0.5;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(g.ang); ctx.fillStyle = '#3a2412';
+    for (const sgn of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, -w * 0.05); ctx.bezierCurveTo(sgn * w * 0.25, -w * 0.2, sgn * w * 0.5, -w * 0.05, sgn * w * 0.55, -w * 0.25); ctx.bezierCurveTo(sgn * w * 0.55, w * 0.12, sgn * w * 0.2, w * 0.12, 0, w * 0.05); ctx.fill(); }
+    ctx.restore(); return;
+  }
+  if (e === 'laser') {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const c of [g.eyeA, g.eyeB]) {
+      const gr = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, g.w * 0.22); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.15, '#ff2020'); gr.addColorStop(1, '#ff000000');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(c.x, c.y, g.w * 0.22, 0, 7); ctx.fill();
+      // raio
+      const dx = Math.cos(g.ang + Math.PI / 2), dy = Math.sin(g.ang + Math.PI / 2), L = Math.max(f.W, f.H) * 2;
+      ctx.strokeStyle = 'rgba(255,40,40,.75)'; ctx.lineWidth = g.w * 0.06 * (0.8 + 0.2 * Math.sin(now / 50));
+      ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + dx * L * 0.15 + (c === g.eyeA ? -1 : 1) * L * 0.5, c.y + dy * L); ctx.stroke();
+    }
+    ctx.restore(); return;
+  }
+  if (e === 'rainbow') {
+    if (g.open < 0.035) return;
+    const m = { x: (g.mouthU.x + g.mouthL.x) / 2, y: (g.mouthU.y + g.mouthL.y) / 2 };
+    const w0 = g.w * 0.28 * Math.min(1, g.open * 7), bottom = f.H + 10, sh = w0 / 6;
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = FLAG[i];
+      ctx.beginPath();
+      for (let y = m.y; y <= bottom; y += 8) { const t = (y - m.y) / (bottom - m.y), spread = 1 + t * 2.5, wob = Math.sin(y / 30 - now / 120) * g.w * 0.04 * t; const x0 = m.x - (w0 * spread) / 2 + i * sh * spread + wob; if (y === m.y) ctx.moveTo(x0, y); else ctx.lineTo(x0, y); }
+      for (let y = bottom; y >= m.y; y -= 8) { const t = (y - m.y) / (bottom - m.y), spread = 1 + t * 2.5, wob = Math.sin(y / 30 - now / 120) * g.w * 0.04 * t; const x1 = m.x - (w0 * spread) / 2 + (i + 1) * sh * spread + wob; ctx.lineTo(x1, y); }
+      ctx.closePath(); ctx.fill();
+    }
+    return;
+  }
+  if (e === 'bighead') {
+    const bw = g.w * 1.35, bh = g.h * 1.45, sx = g.cx - bw / 2, sy = g.cy - bh / 2 - g.h * 0.1, k = 1.6;
+    ctx.save(); ctx.beginPath(); ctx.ellipse(g.cx, g.cy - g.h * 0.25, bw * k / 2, bh * k / 2, g.ang, 0, 7); ctx.clip();
+    ctx.drawImage(f.work, sx, sy, bw, bh, g.cx - bw * k / 2, g.cy - g.h * 0.25 - bh * k / 2, bw * k, bh * k);
+    ctx.restore(); return;
+  }
+  if (e === 'bigeyes') {
+    const r = g.w * 0.13, k = 1.9;
+    for (const c of [g.eyeA, g.eyeB]) {
+      ctx.save(); ctx.beginPath(); ctx.arc(c.x, c.y, r * k, 0, 7); ctx.clip();
+      ctx.drawImage(f.work, c.x - r, c.y - r, r * 2, r * 2, c.x - r * k, c.y - r * k, r * 2 * k, r * 2 * k);
+      ctx.restore();
+    }
+  }
+}
+
+function renderFxGrid(){
+  for (const [boxId, list, key] of [['fxFace', FX_FACE, 'face'], ['fxBg', FX_BG, 'bg']]) {
+    const box = $(boxId); box.innerHTML = '';
+    for (const [id, ic, nm] of list) {
+      const b = document.createElement('button');
+      b.className = fxCfg[key] === id ? 'on' : '';
+      b.innerHTML = '<b></b><span></span>'; b.querySelector('b').textContent = ic; b.querySelector('span').textContent = nm;
+      b.onclick = () => { fxCfg[key] = id; applyFx(); };
+      box.appendChild(b);
+    }
+  }
+}
+function openFx(){ if (!B.cam) return toast('Liga a câmera primeiro'); renderFxGrid(); $('fxModal').classList.remove('hidden'); }
+$('fxClose').onclick = () => $('fxModal').classList.add('hidden');
+$('fxSideBtn').onclick = openFx;
 
 /* alguém pediu pra assistir minha tela ou minha câmera */
 function retuneAll(b){

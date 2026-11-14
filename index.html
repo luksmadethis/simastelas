@@ -74,6 +74,9 @@
   .btn.main{background:linear-gradient(90deg,var(--r),var(--o) 25%,var(--g) 55%,var(--b) 80%,var(--v))}
   .btn.stop{background:#3a1520;color:#ff8a9a;border:1px solid #5a2030}
   .live-ctl{display:flex;gap:8px}
+  .share-row{display:flex;gap:8px}
+  .share-row .btn{flex:1;padding:13px 10px}
+  .btn.cam{background:#24212d;border:1px solid #3b3550}
   .tog{flex:1;border:1px solid var(--line);background:#24212d;color:var(--txt);border-radius:10px;padding:10px 8px;font-size:13px;font-weight:700;cursor:pointer}
   .tog.on{background:#16361f;border-color:#1f6b34;color:#7dffa5}
   .tog.off{background:#3a1520;border-color:#5a2030;color:#ff8a9a}
@@ -149,10 +152,15 @@
         <option value="1080">1080p 60fps</option>
         <option value="720">720p (internet podre véia)</option>
       </select>
-      <button class="btn main" id="shareBtn">▶ Transmitir</button>
+      <div class="share-row" id="shareRow">
+        <button class="btn main" id="shareBtn">🖥️ Tela</button>
+        <button class="btn cam" id="camBtn">📷 Câmera</button>
+      </div>
+      <button class="btn stop hidden" id="stopBtn">■ Parar</button>
       <div class="live-ctl hidden" id="liveCtl">
         <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
         <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
+        <button class="tog hidden" id="flipBtn" title="Trocar câmera (frente/trás)">🔄 Virar</button>
       </div>
       <details class="warn" open>
         <summary>⚠️ le essa porra caralho</summary>
@@ -270,6 +278,7 @@ let capture = null;          // captura original da tela
 let stream = null;           // o que vai pros outros (vídeo + áudio mixado)
 let mix = null;              // { ctx, sg (ganho do som da tela), mg (ganho do mic), micSrc, hasScreenAudio }
 let micStream = null, micOn = false, soundOn = true;
+let shareKind = 'screen', facing = 'user';
 const viewers = new Map();   // quem assiste a minha tela: peerId -> {conn, call}
 
 // assistindo (grade)
@@ -378,7 +387,7 @@ function joinHub(){
 let lastSent = '';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;
-  const st = { t:'state', cid: CID, nick, photo, sharing: !!stream, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
+  const st = { t:'state', cid: CID, nick, photo, sharing: !!stream, kind: stream ? shareKind : null, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
   const key = JSON.stringify(st);
   if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
   lastSent = key;
@@ -412,7 +421,7 @@ function runHub(h){
       const k = m.cid || m.id, b = best.get(k);
       if (!b || (m.sharing && !b.sharing) || (m.sharing === b.sharing && m.joined > b.joined)) best.set(k, m);
     }
-    const list = [...best.values()].map(({id,nick,photo,sharing,mic,sound,watching}) => ({id,nick,photo,sharing,mic,sound,watching}));
+    const list = [...best.values()].map(({id,nick,photo,sharing,kind,mic,sound,watching}) => ({id,nick,photo,sharing,kind,mic,sound,watching}));
     for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list }); } catch(e){}
   };
   h.on('connection', c => {
@@ -423,10 +432,10 @@ function runHub(h){
         const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
         const prev = hm.get(c.peer);
         const nu = { conn:c, id:c.peer, cid: typeof d.cid === 'string' ? d.cid.slice(0,40) : '', joined: prev && prev.conn === c ? prev.joined : Date.now(), nick:String(d.nick || '???').slice(0,20), photo:ph,
-                     sharing:!!d.sharing, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
+                     sharing:!!d.sharing, kind: d.kind === 'cam' ? 'cam' : 'screen', mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
         const old = prev;
         const same = old && old.conn === c && old.nick === nu.nick && old.photo === nu.photo && old.sharing === nu.sharing &&
-                     old.mic === nu.mic && old.cid === nu.cid && old.sound === nu.sound && old.watching.join() === nu.watching.join();
+                     old.mic === nu.mic && old.cid === nu.cid && old.kind === nu.kind && old.sound === nu.sound && old.watching.join() === nu.watching.join();
         hm.set(c.peer, nu);
         if (!same) bcast();
       } else if (d.t === 'ping') {
@@ -482,7 +491,7 @@ function render(){
     const st = document.createElement('div'); st.className = 'ms' + (m.sharing ? ' live' : '');
     if (m.sharing) {
       const e = eyesOn(m.id);
-      st.textContent = '🔴 ao vivo' + (m.mic ? ' · 🎤' : '') + (m.sound === false ? ' · 🔇' : '') + (e ? ' · 👀 ' + e : '');
+      st.textContent = (m.kind === 'cam' ? '📷 câmera' : '🔴 ao vivo') + (m.mic ? ' · 🎤' : '') + (m.sound === false ? ' · 🔇' : '') + (e ? ' · 👀 ' + e : '');
     } else if (Array.isArray(m.watching) && m.watching.length) {
       st.textContent = '👀 ' + nickOf(m.watching[0]) + (m.watching.length > 1 ? ` +${m.watching.length - 1}` : '');
     } else st.textContent = 'online';
@@ -597,7 +606,8 @@ function addTile(id){
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
   t.video.ondblclick = () => q('.b-fs').click();
   q('.b-close').onclick = () => { hiddenIds.add(id); removeTile(id); syncTiles(); };
-  let hideT; el.addEventListener('mousemove', () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 2500); });
+  let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
+  el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 
   tiles.set(id, t); order.push(id);
   $('grid').appendChild(el);
@@ -642,7 +652,7 @@ function setTileStream(t, s){
   const v = t.video, q = sel => t.el.querySelector(sel);
   v.srcObject = s;
   q('.tload').classList.add('hidden');
-  if (t.self) { v.muted = true; v.play().catch(()=>{}); return; }
+  if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && facing === 'user') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;
   v.muted = false;
   v.play().catch(() => { v.muted = true; v.play().catch(()=>{}); q('.unmute').classList.remove('hidden'); updMute(t); });
@@ -678,7 +688,51 @@ function startStats(t){
 }
 
 /* ===================== transmitir ===================== */
-$('shareBtn').onclick = () => stream ? stopShare() : startShare();
+$('shareBtn').onclick = () => { if (!stream) startShare(); };
+$('camBtn').onclick = () => { if (!stream) startCam(); };
+$('stopBtn').onclick = () => stopShare();
+if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) $('shareBtn').classList.add('hidden');  // celular: só câmera
+
+function getCam(f){
+  const hd = $('res').value === '1080';
+  return navigator.mediaDevices.getUserMedia({ audio: false, video: {
+    facingMode: f, width: { ideal: hd ? 1920 : 1280 }, height: { ideal: hd ? 1080 : 720 }, frameRate: { ideal: 60, max: 60 } } });
+}
+async function startCam(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert('Esse navegador não deixa usar a câmera.');
+  let s;
+  try { s = await getCam(facing); }
+  catch(e) { toast(e.name === 'NotAllowedError' ? 'Libera a câmera aí, primo' : 'Não achei câmera: ' + e.message); return; }
+  beginShare(s, 'cam');
+  toast('Câmera on! Liga o 🎤 se quiser falar');
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const many = devs.filter(d => d.kind === 'videoinput').length > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent);
+    $('flipBtn').classList.toggle('hidden', !many || shareKind !== 'cam');
+  } catch(e){}
+}
+async function flipCam(){
+  if (!stream || shareKind !== 'cam') return;
+  const nf = facing === 'user' ? 'environment' : 'user';
+  const ot = stream.getVideoTracks()[0];
+  ot.stop();                                   // alguns celulares só abrem uma câmera por vez
+  let s, ok = true;
+  try { s = await getCam(nf); }
+  catch(e) { ok = false; try { s = await getCam(facing); } catch(e2){ stopShare(); return; } toast('Não deu pra virar a câmera'); }
+  if (ok) facing = nf;
+  const nt = s.getVideoTracks()[0];
+  nt.contentHint = 'motion';
+  nt.addEventListener('ended', stopShare);
+  for (const v of viewers.values()) {
+    const pc = v.call && v.call.peerConnection;
+    const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
+    if (snd) await snd.replaceTrack(nt).catch(()=>{});
+  }
+  stream.removeTrack(ot); stream.addTrack(nt);
+  capture = new MediaStream([nt]);
+  const me_t = tiles.get(myId); if (me_t) setTileStream(me_t, stream);
+}
+$('flipBtn').onclick = flipCam;
 
 async function startShare(){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)
@@ -699,10 +753,11 @@ async function startShare(){
   beginShare(s);
 }
 
-function beginShare(s){
+function beginShare(s, kind = 'screen'){
+  shareKind = kind;
   capture = s;
   const v = s.getVideoTracks()[0];
-  v.contentHint = $('mode').value;
+  v.contentHint = kind === 'cam' ? 'motion' : $('mode').value;
   v.addEventListener('ended', stopShare);
 
   // mixer: som da tela + mic (cada um com seu liga/desliga, sem reconectar ninguém)
@@ -718,9 +773,11 @@ function beginShare(s){
   const at = dest.stream.getAudioTracks()[0];
   at.contentHint = 'music';
   stream = new MediaStream([v, at]);
-  if (!sa) toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
+  if (!sa && kind === 'screen') toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
 
-  $('shareBtn').className = 'btn stop'; $('shareBtn').textContent = '■ Parar';
+  $('shareRow').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
+  $('sndBtn').classList.toggle('hidden', kind === 'cam');
+  $('flipBtn').classList.add('hidden');
   $('mode').disabled = $('res').disabled = true;
   $('liveCtl').classList.remove('hidden');
   updLiveCtl();
@@ -737,7 +794,7 @@ function stopShare(){
   try { mix.ctx.close(); } catch(e){}
   mix = null; stream = null; capture = null;
   for (const id of [...viewers.keys()]) dropViewer(id);
-  $('shareBtn').className = 'btn main'; $('shareBtn').textContent = '▶ Transmitir';
+  $('shareRow').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
   $('mode').disabled = $('res').disabled = false;
   $('liveCtl').classList.add('hidden');
   removeTile(myId);

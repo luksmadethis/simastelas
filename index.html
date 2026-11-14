@@ -96,6 +96,7 @@
   .chip svg{width:16px;height:12px}
   .stage-top .hint{margin-left:auto;font-size:12px}
   .grid{flex:1;display:grid;gap:10px;min-height:0;position:relative}
+  .tile.click{cursor:zoom-in}.tile.focus{cursor:zoom-out}
   .tile{background:#000;border-radius:14px;border:1px solid var(--line);position:relative;overflow:hidden;min-height:0;min-width:0}
   .tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
   .tload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a090e}
@@ -172,14 +173,7 @@
   <!-- ============ PALCO ============ -->
   <main class="stage">
     <div class="stage-top">
-      <div class="chips" id="chips" title="Quantas telas ver ao mesmo tempo">
-        <button class="chip" data-n="1"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="15" height="11" rx="2" fill="none" stroke="currentColor"/></svg>1</button>
-        <button class="chip" data-n="2"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="11" rx="1.5" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="11" rx="1.5" fill="none" stroke="currentColor"/></svg>2</button>
-        <button class="chip" data-n="3"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x=".5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/></svg>3</button>
-        <button class="chip" data-n="4"><svg viewBox="0 0 16 12"><rect x=".5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y=".5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x=".5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/><rect x="8.5" y="6.5" width="7" height="5" rx="1" fill="none" stroke="currentColor"/></svg>4</button>
-        <button class="chip" data-n="0">Todas</button>
-      </div>
-      <span class="hint" id="hint"></span>
+      <span class="hint" id="hint" style="margin-left:0"></span>
     </div>
     <div class="grid" id="grid">
       <div class="center-msg" id="centerMsg"><h1>Faz live <span class="grad">ai primo</span></h1></div>
@@ -282,10 +276,9 @@ let shareKind = 'screen', facing = 'user';
 const viewers = new Map();   // quem assiste a minha tela: peerId -> {conn, call}
 
 // assistindo (grade)
-let layout = parseInt(store.get('simastelas-layout') ?? '1', 10); if (![0,1,2,3,4].includes(layout)) layout = 1;
+let focusId = null;           // tela maximizada (null = todas divididas)
 const tiles = new Map();     // peerId -> tile
 let order = [];              // ordem das telas na grade
-const hiddenIds = new Set(); // telas que a pessoa fechou na mão
 const skipUntil = {};        // evita reconectar em loop em quem acabou de parar
 
 /* ===================== perfil ===================== */
@@ -479,10 +472,10 @@ function render(){
   if (!gotList) { L.innerHTML = '<div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div>'; }
   for (const m of sorted) {
     const isMe = m.id === myId;
-    const shown = order.includes(m.id);
+    const shown = focusId === m.id;
     const el = document.createElement('div');
     el.className = 'member' + (m.sharing ? ' can' : '') + (shown ? ' sel' : '');
-    if (m.sharing) el.title = shown ? 'Tirar da tela' : 'Pôr na tela';
+    if (m.sharing) el.title = shown ? 'Voltar pra todas' : 'Maximizar';
     const av = document.createElement('div'); av.className = 'av' + (m.sharing ? ' live' : '');
     setAv(av, m.nick, m.photo);
     const info = document.createElement('div'); info.className = 'mi';
@@ -497,16 +490,13 @@ function render(){
     } else st.textContent = 'online';
     info.append(n, st); el.append(av, info);
     if (m.sharing) {
-      const tag = document.createElement('span'); tag.className = 'mtag'; tag.textContent = shown ? '📺 na tela' : '+ ver';
-      el.appendChild(tag);
-      el.onclick = () => toggleOnScreen(m.id);
+      if (shown) { const tag = document.createElement('span'); tag.className = 'mtag'; tag.textContent = '⤢ maximizado'; el.appendChild(tag); }
+      el.onclick = () => toggleFocus(m.id);
     }
     L.appendChild(el);
   }
-  // chips
-  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', +b.dataset.n === layout));
   const live = sharerIds().length;
-  $('hint').textContent = live ? `${live} ao vivo` : '';
+  $('hint').textContent = !live ? '' : live === 1 ? '1 ao vivo' : focusId ? `${live} ao vivo · clica na tela pra voltar pras ${live}` : `${live} ao vivo · clica numa tela pra maximizar`;
   // contadores nas telas
   for (const t of tiles.values()) updateTileInfo(t);
 }
@@ -519,56 +509,46 @@ function sharerIds(){
 
 function syncTiles(){
   const avail = sharerIds();
-  for (const id of [...hiddenIds]) if (!avail.includes(id)) hiddenIds.delete(id);
   for (const id of [...order]) if (!avail.includes(id)) removeTile(id);
-  const max = layout || 99;
-  while (order.length > max) removeTile(order[order.length - 1]);
   const now = Date.now();
   let waiting = false;
   for (const id of avail) {
-    if (order.length >= max) break;
-    if (order.includes(id) || hiddenIds.has(id)) continue;
+    if (order.includes(id)) continue;
     if (skipUntil[id] > now) { waiting = true; continue; }
     addTile(id);
   }
+  order.sort((x, y) => avail.indexOf(x) - avail.indexOf(y));
+  if (focusId && !order.includes(focusId)) focusId = null;
   if (waiting) { clearTimeout(syncTiles.t); syncTiles.t = setTimeout(syncTiles, 4200); }
   layoutGrid(); sendState(); render();
 }
 
-function setLayout(n){
-  layout = n; store.set('simastelas-layout', String(n));
-  syncTiles();
-}
-document.querySelectorAll('.chip').forEach(b => b.onclick = () => setLayout(+b.dataset.n));
-
-function toggleOnScreen(id){
-  if (order.includes(id)) {
-    if (order.length === 1) return;         // não deixa a tela vazia
-    hiddenIds.add(id); removeTile(id); syncTiles();
-  } else {
-    hiddenIds.delete(id);
-    const max = layout || 99;
-    if (order.length >= max) removeTile(order[order.length - 1]);
-    addTile(id); syncTiles();
-  }
+// clicou numa tela (ou no nome na lista): maximiza; clicou de novo: volta pra todas
+function toggleFocus(id){
+  if (!order.includes(id)) return;
+  focusId = (focusId === id || order.length < 2) ? null : id;
+  layoutGrid(); render();
 }
 
 function layoutGrid(){
-  const g = $('grid'), n = order.length;
+  const g = $('grid');
+  const vis = focusId ? [focusId] : order;
+  const n = vis.length;
   $('centerMsg').classList.toggle('hidden', n > 0);
-  if (!n) {
-    const others = sharerIds().length;
-    $('centerMsg').innerHTML = others
-      ? '<h1>Faz live <span class="grad">ai primo</span></h1><p>tem gente ao vivo, clica na lista do lado</p>'
-      : '<h1>Faz live <span class="grad">ai primo</span></h1>';
-  }
   const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
   const rows = Math.max(1, Math.ceil(n / cols));
   g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
   g.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
-  order.forEach((id, i) => { const t = tiles.get(id); if (t) t.el.style.order = i; });
-  // com 3 telas, a terceira ocupa a linha de baixo inteira
-  order.forEach((id, i) => { const t = tiles.get(id); if (t) t.el.style.gridColumn = (n === 3 && i === 2) ? '1 / span 2' : ''; });
+  order.forEach((id, i) => {
+    const t = tiles.get(id); if (!t) return;
+    const show = vis.includes(id);
+    t.el.style.display = show ? '' : 'none';
+    t.el.style.order = i;
+    t.el.style.gridColumn = (!focusId && n === 3 && vis.indexOf(id) === 2) ? '1 / span 2' : '';
+    t.el.classList.toggle('click', order.length > 1 && !focusId);
+    t.el.classList.toggle('focus', !!focusId);
+    applyAudio(t);
+  });
 }
 
 function addTile(id){
@@ -585,27 +565,24 @@ function addTile(id){
       <button class="ib b-mute" title="Mutar">🔊</button>
       <input type="range" class="b-vol" min="0" max="1" step="0.01" value="1" title="Volume">
       <button class="ib b-pip" title="Flutuar (fica por cima de tudo)">📌</button>
-      <button class="ib b-solo" title="Ver só essa">⤢</button>
       <button class="ib b-fs" title="Tela cheia">⛶</button>
-      <button class="ib b-close" title="Fechar essa tela">✖</button>
     </div>`;
-  const t = { id, el, self, video: el.querySelector('video'), conn: null, call: null, dead: false };
+  const t = { id, el, self, video: el.querySelector('video'), conn: null, call: null, dead: false, userMuted: false, blocked: false };
   const q = s => el.querySelector(s);
   if (self) { q('.b-mute').classList.add('hidden'); q('.b-vol').classList.add('hidden'); }
   if (!document.pictureInPictureEnabled) q('.b-pip').classList.add('hidden');
-  q('.unmute').onclick = () => { t.video.muted = false; t.video.play().catch(()=>{}); q('.unmute').classList.add('hidden'); updMute(t); };
-  q('.b-mute').onclick = () => { t.video.muted = !t.video.muted; q('.unmute').classList.add('hidden'); updMute(t); };
-  q('.b-vol').oninput = e => { t.video.volume = +e.target.value; if (t.video.volume > 0) { t.video.muted = false; q('.unmute').classList.add('hidden'); } updMute(t); };
+  // um clique em "ativar som" libera o som de todas as telas
+  q('.unmute').onclick = () => { for (const o of tiles.values()) { o.blocked = false; o.el.querySelector('.unmute').classList.add('hidden'); applyAudio(o); o.video.play().catch(()=>{}); } };
+  q('.b-mute').onclick = () => { t.userMuted = !t.userMuted; t.blocked = false; q('.unmute').classList.add('hidden'); applyAudio(t); };
+  q('.b-vol').oninput = e => { t.video.volume = +e.target.value; if (t.video.volume > 0) { t.userMuted = false; t.blocked = false; q('.unmute').classList.add('hidden'); } applyAudio(t); };
   q('.b-pip').onclick = async () => {
     try {
       if (document.pictureInPictureElement === t.video) await document.exitPictureInPicture();
       else await t.video.requestPictureInPicture();
     } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
   };
-  q('.b-solo').onclick = () => { for (const o of [...order]) if (o !== id) removeTile(o); setLayout(1); };
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
-  t.video.ondblclick = () => q('.b-fs').click();
-  q('.b-close').onclick = () => { hiddenIds.add(id); removeTile(id); syncTiles(); };
+  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute')) return; toggleFocus(id); });
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 
@@ -654,11 +631,15 @@ function setTileStream(t, s){
   q('.tload').classList.add('hidden');
   if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && facing === 'user') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;
-  v.muted = false;
-  v.play().catch(() => { v.muted = true; v.play().catch(()=>{}); q('.unmute').classList.remove('hidden'); updMute(t); });
-  updMute(t);
+  applyAudio(t);
+  v.play().catch(() => { t.blocked = true; applyAudio(t); v.play().catch(()=>{}); q('.unmute').classList.remove('hidden'); });
 }
-function updMute(t){ const v = t.video; t.el.querySelector('.b-mute').textContent = (v.muted || v.volume === 0) ? '🔇' : '🔊'; }
+// tela escondida (outra maximizada) fica muda; volta o som quando aparece de novo
+function applyAudio(t){
+  const v = t.video;
+  v.muted = t.self || t.userMuted || t.blocked || (!!focusId && focusId !== t.id);
+  const b = t.el.querySelector('.b-mute'); if (b) b.textContent = (t.userMuted || v.volume === 0) ? '🔇' : '🔊';
+}
 
 function updateTileInfo(t){
   const m = memberOf(t.id);
@@ -781,8 +762,6 @@ function beginShare(s, kind = 'screen'){
   $('mode').disabled = $('res').disabled = true;
   $('liveCtl').classList.remove('hidden');
   updLiveCtl();
-  hiddenIds.delete(myId);
-  if (layout === 1) { for (const o of [...order]) removeTile(o); addTile(myId); }  // em 1 tela, mostra a sua prévia
   syncTiles();
 }
 

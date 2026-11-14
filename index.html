@@ -172,6 +172,12 @@
   .photo-pick{width:72px;height:72px;border-radius:50%;background:#0f0e14 center/cover no-repeat;border:2px dashed #3b3550;display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer;flex-shrink:0}
   .photo-pick.has{border:2px solid #9b2bc2}
   .photo-row .link-btn{font-size:13px;padding:3px 0}
+  .diag{font-size:13px;line-height:1.5;max-height:60vh;overflow:auto;display:flex;flex-direction:column;gap:10px}
+  .diag h4{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+  .diag .row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:3px 0}
+  .diag .row b{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+  .diag .tip{background:#2a2210;border:1px solid #5a4a20;color:#ffd27a;border-radius:10px;padding:8px 10px;font-size:12px}
+  .diag .ok{color:#7dffa5}.diag .bad{color:#ff8a9a}.diag .meh{color:#ffd27a}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24212d;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;z-index:99}
   @media(max-width:480px){.stopme,.flip{height:40px;padding:0 12px;font-size:13px}}
   @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{order:-1;padding:10px}.grid{min-height:58vh;flex:none;height:58vh}.side{border-right:0;border-top:1px solid var(--line)}.list{max-height:40vh}.center-msg h1{font-size:34px}}
@@ -185,7 +191,7 @@
   <aside class="side">
     <div class="side-head">
       <div class="logo" title="SimasTelas"><span style="color:#e40303">S</span><span style="color:#ff8c00">i</span><span style="color:#ffed00">m</span><span style="color:#00c13a">a</span><span style="color:#2a6bff">s</span><span style="color:#a43cd8">T</span><span style="color:#e40303">e</span><span style="color:#ff8c00">l</span><span style="color:#ffed00">a</span><span style="color:#00c13a">s</span></div>
-      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">entrando…</span></div>
+      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">entrando…</span><button class="link-btn" id="diagBtn" title="Diagnóstico da conexão" style="margin-left:auto">📶 diagnóstico</button></div>
     </div>
     <div class="list" id="list"><div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div></div>
     <div class="controls">
@@ -267,6 +273,16 @@
     <h1 style="font-size:24px;margin-bottom:14px">Qual <span class="grad">câmera</span>?</h1>
     <div id="camList" style="display:flex;flex-direction:column;gap:8px"></div>
     <button class="link-btn" style="margin-top:14px" id="camCancel">cancelar</button>
+  </div>
+</div>
+<div class="modal hidden" id="diagModal">
+  <div class="card" style="max-width:560px">
+    <h1 style="font-size:22px;margin-bottom:12px">📶 <span class="grad">Diagnóstico</span></h1>
+    <div id="diagBody" class="diag"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn cam" id="diagCopy" style="flex:1;padding:10px">📋 Copiar pra mandar no Discord</button>
+      <button class="btn cam" id="diagClose" style="width:auto;padding:10px 18px">Fechar</button>
+    </div>
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -365,7 +381,7 @@ function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) t.el.querySe
 
 // assistindo (grade)
 let focus = [];              // telas escolhidas pra ver (vazio = todas divididas)
-let liveMode = store.get('simastelas-live') === '1';   // câmeras flutuando por cima da tela
+let liveMode = store.get('simastelas-live') !== '0';   // câmeras flutuando por cima da tela
 let floatPos = {}; try { floatPos = JSON.parse(store.get('simastelas-float') || '{}'); } catch(e){}
 let floatZ = 10;
 let bigPref = null;          // qual fica grande: null = automático, 'none' = tudo igual, ou o id da tela
@@ -423,8 +439,16 @@ $('nickInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('nick
 $('editNick').onclick = askNick;
 
 /* ===================== conexão / presença ===================== */
+const HUB_GENS = 3;                                  // salas reserva caso o "dono" da sala trave
+const hubIdOf = g => g ? `${HUB_ID}-g${g}` : HUB_ID;
+const genOf = pid => pid === HUB_ID ? 0 : (pid.startsWith(HUB_ID + '-g') ? +pid.slice(HUB_ID.length + 2) : -1);
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+let hubGen = -1, probe = null, pingMs = null, lastPong = 0, hubHost = null, joinTries = 0, joinMsg = 'carregando a sala…', mobileMayClaim = !IS_MOBILE, noClaimUntil = 0;
+let bootAt = 0;
+
 function boot(){
   renderMe();
+  bootAt = Date.now();
   me = new Peer(PEER_OPTS);
   me.on('open', id => { myId = id; joinHub(); });
   me.on('connection', c => serveConn(c, 'screen'));
@@ -432,63 +456,96 @@ function boot(){
   me.on('disconnected', () => setTimeout(() => { if (me && !me.destroyed && me.disconnected) me.reconnect(); }, 1000));
   me.on('error', err => {
     const msg = String(err.message || '');
+    const pid = (msg.match(/peer\s+(\S+)/i) || [])[1] || '';
     if (err.type === 'peer-unavailable') {
-      if (msg.includes(HUB_ID)) { clearTimeout(hubTimer); hubConn = null; tryBecomeHub(); }
-      else for (const id of [...order]) if (id !== myId && msg.includes(id)) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); }
+      const g = genOf(pid);
+      if (g >= 0) { if (probe && !probe.done) { probe.res[g] = 'gone'; probe.decide(); } }
+      else for (const id of [...order]) if (id === pid) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); }
     } else if (NET_ERRORS.includes(err.type)) {
       setNet(false, 'reconectando…');
     } else console.warn('peer', err);
   });
-  setInterval(() => { if (hubConn && hubConn.open) try { hubConn.send({ t:'ping' }); } catch(e){} }, 5000);
+  // ping até a sala (e detecta sala travada: sem resposta em 15s, procura outra)
+  setInterval(() => {
+    if (!hubConn || !hubConn.open) return;
+    try { hubConn.send({ t:'ping', ts: performance.now() }); } catch(e){}
+    if (lastPong && Date.now() - lastPong > 15000) { const c = hubConn; hubConn = null; try { c.close(); } catch(e){} lastPong = 0; setNet(false, 'a sala travou, procurando…'); joinHub(); }
+  }, 4000);
+  // servidor de conexão não respondeu
+  setTimeout(() => { if (me && !me.open && !idle) { joinMsg = 'não tá conseguindo falar com o servidor de conexão. pode ser a internet ou a rede bloqueando (tenta o 4G ou outra wi-fi)'; render(); } }, 7000);
 }
 
 function setNet(ok, txt){
   $('netDot').classList.toggle('off', !ok);
   if (txt) $('onlineTxt').textContent = txt;
 }
+function onlineLabel(){ return `${members.length} online` + (pingMs != null ? ` · ${pingMs}ms` : ''); }
 
+// procura a sala em todas as "portas" ao mesmo tempo e entra na primeira que responder
 function joinHub(){
   if (idle) return;
   if (!me || !me.open) { setTimeout(joinHub, 500); return; }
   if (hubConn) { const old = hubConn; hubConn = null; try { old.close(); } catch(e){} }
+  if (probe && !probe.done) { probe.done = true; clearTimeout(probe.timer); probe.conns.forEach(c => { try { c.close(); } catch(e){} }); }
   if (!gotList) setNet(false, 'entrando…');
-  const c = me.connect(HUB_ID, { reliable: true });
-  hubConn = c;
-  clearTimeout(hubTimer);
-  // 1ª tentativa espera pouco (pega o caso do F5), depois vai aumentando pra quem tem internet lenta
-  const wait = [2500, 4000, 7000, 10000][Math.min(hubTries, 3)];
-  hubTries++;
-  hubTimer = setTimeout(() => { if (hubConn === c && !c.open) { hubConn = null; try { c.close(); } catch(e){} joinHub(); } }, wait);
-  c.on('open', () => { if (hubConn !== c) return; clearTimeout(hubTimer); hubTries = 0; sendState(true); });
+  joinTries++;
+  if (joinTries > 2 && !gotList) { joinMsg = `a sala tá demorando pra responder… tentativa ${joinTries}`; render(); }
+  const p = { res: new Array(HUB_GENS).fill(null), conns: [], done: false };
+  probe = p;
+  const wait = [3000, 4500, 7000, 10000][Math.min(hubTries, 3)]; hubTries++;
+  const closeOthers = keep => p.conns.forEach(c => { if (c !== keep) try { c.close(); } catch(e){} });
+  p.decide = final => {
+    if (p.done) return;
+    const g = p.res.indexOf('open');
+    if (g >= 0) { p.done = true; clearTimeout(p.timer); closeOthers(p.conns[g]); attachHub(p.conns[g], g); return; }
+    if (!final && p.res.some(r => r == null)) return;
+    p.done = true; clearTimeout(p.timer); closeOthers(null);
+    const free = p.res.indexOf('gone');
+    if (free >= 0 && (mobileMayClaim || joinTries > 3) && Date.now() > noClaimUntil) claimHub(free);
+    else { if (IS_MOBILE) mobileMayClaim = true; setTimeout(joinHub, free >= 0 ? 1500 : 600); }  // celular espera um PC virar dono primeiro
+  };
+  for (let g = 0; g < HUB_GENS; g++) {
+    const c = me.connect(hubIdOf(g), { reliable: true });
+    p.conns[g] = c;
+    c.on('open', () => { if (probe === p && !p.done) { p.res[g] = 'open'; p.decide(); } else if (hubConn !== c) { try { c.close(); } catch(e){} } });
+    c.on('error', () => {});
+  }
+  p.timer = setTimeout(() => { p.res = p.res.map(r => r ?? 'timeout'); p.decide(true); }, wait);
+}
+
+function attachHub(c, g){
+  hubConn = c; hubGen = g; hubTries = 0; lastPong = Date.now();
   c.on('data', d => {
     if (hubConn !== c || !d) return;
-    if (d.t === 'list') onList(d.members);
-    else if (d.t === 'hubbye') { hubConn = null; try { c.close(); } catch(e){} setNet(false, 'reconectando…'); setTimeout(joinHub, 150 + Math.random()*900); }
+    if (d.t === 'list') { hubHost = d.host || null; onList(d.members); }
+    else if (d.t === 'pong') { lastPong = Date.now(); pingMs = Math.round(performance.now() - d.ts); if (gotList) setNet(true, onlineLabel()); }
+    else if (d.t === 'hubbye') { hubConn = null; try { c.close(); } catch(e){} setNet(false, 'reconectando…'); setTimeout(joinHub, (IS_MOBILE ? 1800 : 150) + Math.random()*700); }
   });
   c.on('close', () => { if (hubConn !== c) return; hubConn = null; setNet(false, 'reconectando…'); setTimeout(joinHub, 200 + Math.random()*1000); });
-  c.on('error', () => {});
+  sendState(true);
+  try { c.send({ t:'ping', ts: performance.now() }); } catch(e){}
 }
 
 let lastSent = '';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;
-  const st = { t:'state', cid: CID, nick, photo, sharing: !!B.screen, camId: (B.cam && !SM) ? B.cam.sid : null, mic: micOn, sound: soundOn, watching: order.filter(id => !isSelfSid(id)) };
+  const st = { t:'state', cid: CID, mob: IS_MOBILE, nick, photo, sharing: !!B.screen, camId: (B.cam && !SM) ? B.cam.sid : null, mic: micOn, sound: soundOn, watching: order.filter(id => !isSelfSid(id)) };
   const key = JSON.stringify(st);
   if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
   lastSent = key;
   try { hubConn.send(st); } catch(e){}
 }
 
-/* --- o hub: guarda quem tá na sala e avisa todo mundo --- */
-function tryBecomeHub(){
+/* --- o "dono" da sala: guarda quem tá online e avisa todo mundo --- */
+function claimHub(g){
   if (idle) return;
   if (hub || becomingHub) { setTimeout(joinHub, 600); return; }
   becomingHub = true;
-  const h = new Peer(HUB_ID, PEER_OPTS);
-  h.on('open', () => { becomingHub = false; hub = h; hubApi = runHub(h); joinHub(); });
+  const h = new Peer(hubIdOf(g), PEER_OPTS);
+  h.on('open', () => { becomingHub = false; hub = h; hubApi = runHub(h, g); joinHub(); });
   h.on('disconnected', () => setTimeout(() => { if (hub === h && !h.destroyed && h.disconnected) h.reconnect(); }, 1000));
   h.on('error', e => {
-    if (e.type === 'unavailable-id') {           // alguém já é o hub
+    if (e.type === 'unavailable-id') {           // alguém pegou antes
       becomingHub = false; if (hub === h) { hub = null; hubApi = null; } h.destroy();
       setTimeout(joinHub, 200 + Math.random()*700);
     } else if (hub !== h && !NET_ERRORS.includes(e.type)) {
@@ -496,9 +553,16 @@ function tryBecomeHub(){
     }
   });
 }
+function dropHub(){
+  const h = hub; hub = null;
+  try { hubApi && hubApi.bye(); } catch(e){}
+  hubApi = null;
+  setTimeout(() => { try { h && h.destroy(); } catch(e){} }, 300);
+}
 
-function runHub(h){
-  const hm = new Map(); // peerId -> {conn,id,nick,photo,sharing,mic,sound,watching,seen}
+function runHub(h, g){
+  const hm = new Map(); // peerId -> {conn,id,nick,photo,sharing,mic,sound,watching,seen,mob}
+  let alive = true;
   const bcast = () => {
     // mesmo navegador em 2 abas aparece uma vez só (fica a que transmite, ou a mais nova)
     const best = new Map();
@@ -508,7 +572,7 @@ function runHub(h){
       if (!b || (lv(m) && !lv(b)) || (lv(m) === lv(b) && m.joined > b.joined)) best.set(k, m);
     }
     const list = [...best.values()].map(({id,nick,photo,sharing,camId,mic,sound,watching}) => ({id,nick,photo,sharing,camId,mic,sound,watching}));
-    for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list }); } catch(e){}
+    for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list, host: myId, gen: g }); } catch(e){}
   };
   h.on('connection', c => {
     c.on('data', d => {
@@ -517,26 +581,42 @@ function runHub(h){
         const ph = (typeof d.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(d.photo) && d.photo.length < 40000) ? d.photo : '';
         const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
         const prev = hm.get(c.peer);
-        const nu = { conn:c, id:c.peer, cid: typeof d.cid === 'string' ? d.cid.slice(0,40) : '', joined: prev && prev.conn === c ? prev.joined : Date.now(), nick:String(d.nick || '???').slice(0,20), photo:ph,
+        const nu = { conn:c, id:c.peer, mob: !!d.mob, cid: typeof d.cid === 'string' ? d.cid.slice(0,40) : '', joined: prev && prev.conn === c ? prev.joined : Date.now(), nick:String(d.nick || '???').slice(0,20), photo:ph,
                      sharing:!!d.sharing, camId: typeof d.camId === 'string' ? d.camId.slice(0,64) : null, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
         const old = prev;
         const same = old && old.conn === c && old.nick === nu.nick && old.photo === nu.photo && old.sharing === nu.sharing &&
                      old.mic === nu.mic && old.cid === nu.cid && old.camId === nu.camId && old.sound === nu.sound && old.watching.join() === nu.watching.join();
         hm.set(c.peer, nu);
         if (!same) bcast();
+        // dono da sala no celular trava quando o app vai pro fundo: passa a sala pra um PC assim que tiver um
+        if (IS_MOBILE && !nu.mob && alive) { alive = false; setTimeout(() => { noClaimUntil = Date.now() + 10000; dropHub(); }, 2000); }
       } else if (d.t === 'ping') {
         const m = hm.get(c.peer); if (m) m.seen = Date.now();
+        try { c.send({ t:'pong', ts: d.ts }); } catch(e){}
       } else if (d.t === 'bye') {
         if (hm.delete(c.peer)) bcast();
       }
     });
     c.on('close', () => { const m = hm.get(c.peer); if (m && m.conn === c) { hm.delete(c.peer); bcast(); } });
   });
-  setInterval(() => {
+  const iv = setInterval(() => {
+    if (hub !== h) { clearInterval(iv); return; }
     const now = Date.now(); let changed = false;
     for (const [id, m] of hm) if (now - m.seen > 20000) { try { m.conn.close(); } catch(e){} hm.delete(id); changed = true; }
     if (changed) bcast();
   }, 5000);
+  // se eu sou uma sala reserva e a principal voltou a funcionar, manda todo mundo de volta pra ela
+  if (g > 0) {
+    const chk = setInterval(() => {
+      if (hub !== h) { clearInterval(chk); return; }
+      for (let lg = 0; lg < g; lg++) {
+        const c = me.connect(hubIdOf(lg), { reliable: true });
+        const to = setTimeout(() => { try { c.close(); } catch(e){} }, 6000);
+        c.on('open', () => { clearTimeout(to); try { c.close(); } catch(e){} if (hub === h) { clearInterval(chk); dropHub(); } });
+        c.on('error', () => {});
+      }
+    }, 15000);
+  }
   return { bye(){ for (const m of hm.values()) if (m.conn.open && m.id !== myId) try { m.conn.send({ t:'hubbye' }); } catch(e){} } };
 }
 
@@ -551,7 +631,8 @@ window.addEventListener('pagehide', () => {
 function onList(list){
   gotList = true;
   members = list;
-  setNet(true, `${list.length} online`);
+  joinTries = 0; joinMsg = 'carregando a sala…';
+  setNet(true, onlineLabel());
   syncTiles();
 }
 
@@ -563,7 +644,11 @@ function render(){
   const L = $('list'); L.innerHTML = '';
   const lv = x => (x.sharing || x.camId) ? 1 : 0;
   const sorted = [...members].sort((a,b) => (lv(b) - lv(a)) || (a.id === myId ? -1 : b.id === myId ? 1 : a.nick.localeCompare(b.nick)));
-  if (!gotList) { L.innerHTML = '<div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div>'; }
+  if (!gotList) {
+    L.innerHTML = '<div class="empty-list"><div class="spinner sm"></div><span></span></div>';
+    L.querySelector('span').textContent = joinMsg;
+    if (joinTries > 3 || /servidor/.test(joinMsg)) { const b = document.createElement('button'); b.className = 'link-btn'; b.textContent = '🔄 tentar de novo'; b.onclick = () => location.reload(); L.firstChild.appendChild(b); }
+  }
   for (const m of sorted) {
     const isMe = m.id === myId;
     const live = !!(m.sharing || m.camId);
@@ -1156,6 +1241,8 @@ function beginBroadcast(kind, s, peer){
   if (kind === 'screen' && !sa) toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
   routeMic();
   updShareUi(); syncTiles(); sendState();
+  // stream mode é o padrão: ligou tela + câmera, já junta (dá pra separar no botão)
+  if (B.screen && B.cam && !SM && store.get('simastelas-smauto') !== '0') startStreamMode();
 }
 
 function stopBroadcast(kind){
@@ -1342,7 +1429,7 @@ function updSmUi(){
   $('smSize').value = smCfg.size;
 }
 function saveSm(){ store.set('simastelas-sm', JSON.stringify(smCfg)); updSmUi(); }
-$('smBtn').onclick = () => SM ? stopStreamMode() : startStreamMode();
+$('smBtn').onclick = () => { if (SM) { stopStreamMode(); store.set('simastelas-smauto', '0'); } else { startStreamMode(); store.set('simastelas-smauto', '1'); } };
 document.querySelectorAll('#smOpts .seg').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => { smCfg[g.dataset.k] = b.dataset.v; saveSm(); }));
 $('smSize').oninput = e => { smCfg.size = +e.target.value; saveSm(); };
 $('smReset').onclick = () => { smCfg = { ...SM_DEF }; saveSm(); };
@@ -1424,6 +1511,95 @@ function dropViewer(b, id){
 }
 
 window.addEventListener('beforeunload', e => { if (anyLive()) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ===================== diagnóstico ===================== */
+const prevBytes = new WeakMap();
+async function pcStats(pc, dir){
+  const st = await pc.getStats();
+  let pair = null, rtp = null, codec = '', local = null, remote = null;
+  const byId = new Map(); st.forEach(r => byId.set(r.id, r));
+  st.forEach(r => {
+    if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId.get(r.selectedCandidatePairId);
+    if (r.type === (dir === 'in' ? 'inbound-rtp' : 'outbound-rtp') && r.kind === 'video') rtp = r;
+  });
+  if (!pair) st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+  if (pair) { local = byId.get(pair.localCandidateId); remote = byId.get(pair.remoteCandidateId); }
+  if (rtp && rtp.codecId) codec = ((byId.get(rtp.codecId) || {}).mimeType || '').split('/')[1] || '';
+  let mbps = 0;
+  if (rtp) {
+    const bytes = dir === 'in' ? rtp.bytesReceived : rtp.bytesSent;
+    const pv = prevBytes.get(pc);
+    if (pv) mbps = (bytes - pv.b) * 8 / ((rtp.timestamp - pv.t) / 1000) / 1e6;
+    prevBytes.set(pc, { b: bytes, t: rtp.timestamp });
+  }
+  let loss = null;
+  if (rtp && dir === 'in' && rtp.packetsReceived) loss = 100 * (rtp.packetsLost || 0) / (rtp.packetsReceived + (rtp.packetsLost || 0));
+  if (dir === 'out') st.forEach(r => { if (r.type === 'remote-inbound-rtp' && r.kind === 'video' && r.fractionLost != null) loss = r.fractionLost * 100; });
+  const relay = (local && local.candidateType === 'relay') || (remote && remote.candidateType === 'relay');
+  return {
+    rtt: pair && pair.currentRoundTripTime != null ? Math.round(pair.currentRoundTripTime * 1000) : null,
+    relay, codec, mbps, loss,
+    w: rtp ? rtp.frameWidth : 0, h: rtp ? rtp.frameHeight : 0, fps: rtp ? Math.round(rtp.framesPerSecond || 0) : 0,
+    jitter: rtp && rtp.jitter != null ? Math.round(rtp.jitter * 1000) : null,
+    limit: rtp ? rtp.qualityLimitationReason : null
+  };
+}
+const fmtMs = v => v == null ? '—' : v + 'ms';
+const cls = (v, ok, meh) => v == null ? '' : v <= ok ? 'ok' : v <= meh ? 'meh' : 'bad';
+let diagOpen = false, diagText = '';
+async function renderDiag(){
+  if (!diagOpen) return;
+  const L = [], H = [], tips = [];
+  const row = (k, v, c = '') => { H.push(`<div class="row"><span>${k}</span><b class="${c}">${v}</b></div>`); L.push(`${k}: ${v}`); };
+  const sec = t => { H.push(`<h4>${t}</h4>`); L.push(`\n[${t}]`); };
+  sec('Sala');
+  row('Sala', ROOM + (hubGen > 0 ? ` (reserva ${hubGen})` : ''));
+  row('Servidor de conexão', me && me.open ? '✅ conectado' : '❌ sem conexão', me && me.open ? 'ok' : 'bad');
+  row('Na sala', gotList && hubConn && hubConn.open ? `✅ ${members.length} online` : '⏳ entrando…', gotList ? 'ok' : 'meh');
+  row('Ping até a sala', fmtMs(pingMs), cls(pingMs, 120, 250));
+  const host = members.find(m => m.id === hubHost);
+  row('Quem segura a sala', hub ? 'você' : host ? host.nick : '—');
+  row('Seu aparelho', (IS_MOBILE ? '📱 celular' : '💻 PC') + ' · ' + (navigator.userAgentData?.brands?.find(b => !/Not|Chromium/.test(b.brand))?.brand || (/Firefox/.test(navigator.userAgent) ? 'Firefox' : /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent) ? 'Safari' : 'Chrome')));
+  row('Compartilhar tela', navigator.mediaDevices?.getDisplayMedia ? 'dá ✅' : 'não dá nesse aparelho', navigator.mediaDevices?.getDisplayMedia ? 'ok' : 'meh');
+  if (pingMs > 250) tips.push('Ping alto até a sala: sua internet ou a de quem segura a sala tá lenta.');
+  const views = [...tiles.values()].filter(t => !t.self && t.call && t.call.peerConnection);
+  if (views.length) sec('Assistindo');
+  for (const t of views) {
+    try {
+      const x = await pcStats(t.call.peerConnection, 'in');
+      const nm = nickOf(t.id) + (isCamSid(t.id) ? ' (câmera)' : '');
+      row(nm, `${x.w ? x.w + '×' + x.h : '—'} ${x.fps}fps · ${x.mbps.toFixed(1)} Mbps · ${x.codec}`);
+      row(' ↳ ping / perda / atraso', `${fmtMs(x.rtt)} · ${x.loss == null ? '—' : x.loss.toFixed(1) + '%'} · ${fmtMs(x.jitter)}`, cls(x.loss, 1, 5));
+      row(' ↳ conexão', x.relay ? '🔁 por servidor de apoio' : '⚡ direta', x.relay ? 'meh' : 'ok');
+      if (x.loss > 5) tips.push(`Tá perdendo pacote da transmissão de ${nickOf(t.id)}: a internet de alguém tá instável (wi-fi longe? tenta cabo).`);
+      if (x.relay) tips.push(`A conexão com ${nickOf(t.id)} tá passando por um servidor de apoio (a rede não deixou conexão direta). Pode ficar mais lenta.`);
+    } catch(e){}
+  }
+  for (const b of [B.screen, B.cam]) {
+    if (!b || (SM && b.kind === 'cam')) continue;
+    sec(b.kind === 'cam' ? 'Sua câmera' : (SM ? 'Sua transmissão (stream mode)' : 'Sua tela'));
+    const vs = [...b.viewers.entries()].filter(([, v]) => v.call && v.call.peerConnection);
+    if (!vs.length) row('Assistindo', 'ninguém ainda');
+    for (const [id, v] of vs) {
+      try {
+        const x = await pcStats(v.call.peerConnection, 'out');
+        row('pra ' + nickOf(id), `${x.h ? x.h + 'p' : '—'} ${x.fps}fps · ${x.mbps.toFixed(1)} Mbps · ${x.codec}`);
+        row(' ↳ ping / perda / conexão', `${fmtMs(x.rtt)} · ${x.loss == null ? '—' : x.loss.toFixed(1) + '%'} · ${x.relay ? '🔁 apoio' : '⚡ direta'}`, cls(x.loss, 1, 5));
+        if (x.limit === 'cpu') tips.push('Seu PC tá no limite pra transmitir: tenta 720p ou fecha uns programas.');
+        if (x.limit === 'bandwidth') tips.push(`Sua internet não tá dando conta de mandar pra todo mundo (upload). Tenta 720p.`);
+      } catch(e){}
+    }
+  }
+  if (!tips.length) tips.push('Tudo certo por aqui ✅');
+  H.push(...[...new Set(tips)].map(t => `<div class="tip">${t}</div>`));
+  L.push('', ...[...new Set(tips)].map(t => '• ' + t));
+  $('diagBody').innerHTML = H.join('');
+  diagText = 'SimasTelas diagnóstico — ' + nick + '\n' + L.join('\n');
+}
+$('diagBtn').onclick = () => { diagOpen = true; $('diagModal').classList.remove('hidden'); $('diagBody').innerHTML = '<div class="empty-list"><div class="spinner sm"></div></div>'; renderDiag(); };
+$('diagClose').onclick = () => { diagOpen = false; $('diagModal').classList.add('hidden'); };
+$('diagCopy').onclick = async () => { try { await navigator.clipboard.writeText(diagText); toast('Copiado! Cola no Discord'); } catch(e){ prompt('Copia:', diagText); } };
+setInterval(renderDiag, 1500);
 
 /* ===================== início ===================== */
 /* ===================== uma aba só por navegador ===================== */

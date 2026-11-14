@@ -112,7 +112,10 @@
   .ib{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;padding:6px 9px;font-size:13px;cursor:pointer;white-space:nowrap}
   .ib:hover{background:rgba(255,255,255,.26)}
   .tbar input[type=range]{width:80px;padding:0;accent-color:#9b2bc2;background:none;border:0}
-  .unmute{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(20,18,28,.9);padding:12px 20px;border-radius:12px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6);z-index:2}
+  .unmute.fade{opacity:0;pointer-events:none}
+  .flip{position:absolute;right:12px;bottom:56px;width:52px;height:52px;border-radius:50%;border:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);color:#fff;font-size:24px;cursor:pointer;z-index:3;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+  .flip:active{transform:scale(.92)}
+  .unmute{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:rgba(20,18,28,.88);padding:9px 16px;border-radius:999px;font-size:13px;transition:opacity .4s;font-weight:700;color:#fff;cursor:pointer;border:0;box-shadow:0 0 0 2px #9b2bc2,0 10px 40px rgba(0,0,0,.6);z-index:2}
   .center-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;color:var(--mut);background:#000;border-radius:14px;border:1px solid var(--line)}
   .center-msg h1{font-size:46px;line-height:1.05;color:var(--txt);letter-spacing:-1px}
   .spinner{width:40px;height:40px;border-radius:50%;background:conic-gradient(var(--r),var(--o),var(--y),var(--g),var(--b),var(--v),var(--r));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 0);animation:spin 1s linear infinite}
@@ -162,7 +165,6 @@
       <div class="live-ctl hidden" id="liveCtl">
         <button class="tog off" id="micBtn" title="Mandar sua voz junto na transmissão">🎤 Mic off</button>
         <button class="tog on" id="sndBtn" title="Mandar o som da tela">🔊 Som on</button>
-        <button class="tog hidden" id="flipBtn" title="Trocar câmera (frente/trás)">🔄 Virar</button>
       </div>
       <div class="send-stat hidden" id="sendStat"></div>
       <details class="warn" open>
@@ -297,7 +299,8 @@ let capture = null;          // captura original da tela
 let stream = null;           // o que vai pros outros (vídeo + áudio mixado)
 let mix = null;              // { ctx, sg (ganho do som da tela), mg (ganho do mic), micSrc, hasScreenAudio }
 let micStream = null, micOn = false, soundOn = true;
-let shareKind = 'screen', facing = 'user';
+let shareKind = 'screen', facing = 'user', canFlip = false;
+function updFlip(){ const t = tiles.get(myId); if (t) t.el.querySelector('.flip').classList.toggle('hidden', !(canFlip && stream && shareKind === 'cam')); }
 const viewers = new Map();   // quem assiste a minha tela: peerId -> {conn, call}
 
 // assistindo (grade)
@@ -584,7 +587,8 @@ function addTile(id){
     <video autoplay playsinline muted></video>
     <div class="tload"><div class="spinner"></div></div>
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
-    <button class="unmute hidden">🔊 Ativar som</button>
+    <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
+    <button class="flip hidden" title="Virar câmera">🔄</button>
     <div class="tbar">
       <span class="tstat"></span>
       <button class="ib b-mute" title="Mutar">🔊</button>
@@ -597,7 +601,7 @@ function addTile(id){
   if (self) { q('.b-mute').classList.add('hidden'); q('.b-vol').classList.add('hidden'); }
   if (!document.pictureInPictureEnabled) q('.b-pip').classList.add('hidden');
   // um clique em "ativar som" libera o som de todas as telas
-  q('.unmute').onclick = () => { for (const o of tiles.values()) { o.blocked = false; o.el.querySelector('.unmute').classList.add('hidden'); applyAudio(o); o.video.play().catch(()=>{}); } };
+  q('.unmute').onclick = unlockAudio;
   q('.b-mute').onclick = () => { t.userMuted = !t.userMuted; t.blocked = false; q('.unmute').classList.add('hidden'); applyAudio(t); };
   q('.b-vol').oninput = e => { t.video.volume = +e.target.value; if (t.video.volume > 0) { t.userMuted = false; t.blocked = false; q('.unmute').classList.add('hidden'); } applyAudio(t); };
   q('.b-pip').onclick = async () => {
@@ -607,7 +611,8 @@ function addTile(id){
     } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
   };
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
-  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute')) return; toggleFocus(id); });
+  if (self) q('.flip').onclick = flipCam;
+  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip')) return; toggleFocus(id); });
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 
@@ -616,7 +621,7 @@ function addTile(id){
   updateTileInfo(t);
   startStats(t);
 
-  if (self) { setTileStream(t, stream); return; }
+  if (self) { setTileStream(t, stream); updFlip(); return; }
   const c = me.connect(id, { reliable: true, metadata: { t: 'watch' } });
   t.conn = c;
   const gone = () => { if (tiles.get(id) === t) { skipUntil[id] = Date.now() + 4000; removeTile(id); syncTiles(); } };
@@ -657,9 +662,21 @@ function setTileStream(t, s){
   if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && facing === 'user') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;
   applyAudio(t);
-  v.play().catch(() => { t.blocked = true; applyAudio(t); v.play().catch(()=>{}); q('.unmute').classList.remove('hidden'); });
+  v.play().catch(() => {
+    t.blocked = true; applyAudio(t); v.play().catch(()=>{});
+    const u = q('.unmute'); u.classList.remove('hidden', 'fade');
+    clearTimeout(t.uT); t.uT = setTimeout(() => u.classList.add('fade'), 6000);
+  });
 }
 // tela escondida (outra maximizada) fica muda; volta o som quando aparece de novo
+function unlockAudio(){
+  for (const o of tiles.values()) {
+    if (!o.blocked) continue;
+    o.blocked = false; o.el.querySelector('.unmute').classList.add('hidden'); applyAudio(o); o.video.play().catch(()=>{});
+  }
+}
+// o navegador só deixa tocar som depois de um clique: qualquer clique ou tecla na página já libera
+['pointerdown','keydown','touchstart'].forEach(ev => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }));
 function applyAudio(t){
   const v = t.video;
   v.muted = t.self || t.userMuted || t.blocked || (!!focusId && focusId !== t.id);
@@ -735,7 +752,7 @@ async function startCam(){
   try {
     const devs = await navigator.mediaDevices.enumerateDevices();
     const many = devs.filter(d => d.kind === 'videoinput').length > 1 || /Android|iPhone|iPad/i.test(navigator.userAgent);
-    $('flipBtn').classList.toggle('hidden', !many || shareKind !== 'cam');
+    canFlip = many; updFlip();
   } catch(e){}
 }
 async function flipCam(){
@@ -759,7 +776,7 @@ async function flipCam(){
   capture = new MediaStream([nt]);
   const me_t = tiles.get(myId); if (me_t) setTileStream(me_t, stream);
 }
-$('flipBtn').onclick = flipCam;
+
 
 const WHY = { cpu:'PC no limite 🔥', bandwidth:'internet no limite 🐌', none:'de boa ✅', other:'limitado' };
 setInterval(async () => {
@@ -819,7 +836,7 @@ function beginShare(s, kind = 'screen'){
 
   $('shareRow').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
   $('sndBtn').classList.toggle('hidden', kind === 'cam');
-  $('flipBtn').classList.add('hidden');
+  canFlip = false;
   $('mode').disabled = $('res').disabled = true;
   $('liveCtl').classList.remove('hidden');
   updLiveCtl();

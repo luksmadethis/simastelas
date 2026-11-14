@@ -781,7 +781,7 @@ async function listCams(){
 function camName(c, i){
   const l = c.label || '';
   if (/front|frontal|user/i.test(l)) return '🤳 Câmera da frente';
-  if (/back|rear|traseira|environment/i.test(l)) return '📷 Câmera de trás' + (/\d/.test(l) ? ' (' + l.replace(/.*?(\d+).*/, '$1') + ')' : '');
+  if (/back|rear|traseira|environment/i.test(l)) return '📷 Câmera de trás';
   return '🎥 ' + (l.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '') || 'Câmera ' + (i + 1));
 }
 async function startCam(){
@@ -796,10 +796,14 @@ async function startCam(){
   if (cams.length === 1) return openCam(cams[0].deviceId);
   const box = $('camList'); box.innerHTML = '';
   const last = store.get('simastelas-cam');
+  const names = cams.map(camName);
+  const seen = {};
   cams.forEach((c, i) => {
     const b = document.createElement('button');
     b.className = 'btn cam-opt' + (c.deviceId === last ? ' last' : '');
-    b.textContent = camName(c, i);
+    const nm = names[i], dup = names.filter(x => x === nm).length > 1;
+    seen[nm] = (seen[nm] || 0) + 1;
+    b.textContent = dup ? `${nm} ${seen[nm]}` : nm;
     b.onclick = () => { $('camModal').classList.add('hidden'); openCam(c.deviceId); };
     box.appendChild(b);
   });

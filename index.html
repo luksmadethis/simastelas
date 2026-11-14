@@ -678,32 +678,31 @@ function updateTileInfo(t){
 
 function startStats(t){
   const v = t.video, out = t.el.querySelector('.tstat');
-  if (!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return;
-  let frames = 0, last = performance.now();
-  const tick = () => {
-    if (t.dead) return;
-    frames++;
-    const now = performance.now();
-    if (now - last >= 1000) {
-      const fps = Math.round(frames*1000/(now-last));
-      out.textContent = v.videoWidth ? `${v.videoWidth}×${v.videoHeight} • ${fps}fps${t.net || ''}` : '';
-      frames = 0; last = now;
-      if (t.call && t.call.peerConnection && !t.statBusy) {
-        t.statBusy = true;
-        t.call.peerConnection.getStats().then(st => {
-          let i = null; const codecs = {};
-          st.forEach(r => { if (r.type === 'inbound-rtp' && r.kind === 'video') i = r; if (r.type === 'codec') codecs[r.id] = (r.mimeType || '').split('/')[1]; });
-          if (i) {
-            const mbps = t.lastBytes != null ? ((i.bytesReceived - t.lastBytes) * 8 / ((i.timestamp - t.lastTs) / 1000) / 1e6) : 0;
-            t.lastBytes = i.bytesReceived; t.lastTs = i.timestamp;
-            t.net = ` • ${codecs[i.codecId] || ''} • ${mbps.toFixed(1)} Mbps`;
-          }
-        }).catch(()=>{}).finally(() => { t.statBusy = false; });
-      }
-    }
+  let frames = 0, last = performance.now(), rvfc = false;
+  if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+    const tick = () => { if (t.dead) return; frames++; rvfc = true; v.requestVideoFrameCallback(tick); };
     v.requestVideoFrameCallback(tick);
-  };
-  v.requestVideoFrameCallback(tick);
+  }
+  const iv = setInterval(async () => {
+    if (t.dead) { clearInterval(iv); return; }
+    const now = performance.now();
+    let fps = Math.round(frames * 1000 / (now - last));
+    frames = 0; last = now;
+    let net = '';
+    if (t.call && t.call.peerConnection) {
+      try {
+        const st = await t.call.peerConnection.getStats(); let i = null; const codecs = {};
+        st.forEach(r => { if (r.type === 'inbound-rtp' && r.kind === 'video') i = r; if (r.type === 'codec') codecs[r.id] = (r.mimeType || '').split('/')[1]; });
+        if (i) {
+          const mbps = t.lastBytes != null ? ((i.bytesReceived - t.lastBytes) * 8 / ((i.timestamp - t.lastTs) / 1000) / 1e6) : 0;
+          t.lastBytes = i.bytesReceived; t.lastTs = i.timestamp;
+          if (!rvfc && i.framesPerSecond) fps = Math.round(i.framesPerSecond);
+          net = ` • ${codecs[i.codecId] || ''} • ${mbps.toFixed(1)} Mbps`;
+        }
+      } catch(e){}
+    }
+    out.textContent = v.videoWidth ? `${v.videoWidth}×${v.videoHeight} • ${fps}fps${net}` : '';
+  }, 1000);
 }
 
 /* ===================== transmitir ===================== */

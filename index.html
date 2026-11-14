@@ -78,6 +78,7 @@
   .share-row .btn{flex:1;padding:13px 10px}
   .cam-opt{background:#24212d;border:1px solid #3b3550;justify-content:flex-start;font-size:14px}
   .cam-opt.last{border-color:#9b2bc2}
+  .btn.stop{font-size:14px}
   .btn.cam{background:#24212d;border:1px solid #3b3550}
   .tog{flex:1;border:1px solid var(--line);background:#24212d;color:var(--txt);border-radius:10px;padding:10px 8px;font-size:13px;font-weight:700;cursor:pointer}
   .tog.on{background:#16361f;border-color:#1f6b34;color:#7dffa5}
@@ -306,13 +307,14 @@ let hub = null, hubApi = null, becomingHub = false;
 let members = [];
 
 // transmitindo
-let capture = null;          // captura original da tela
-let stream = null;           // o que vai pros outros (vídeo + áudio mixado)
-let mix = null;              // { ctx, sg (ganho do som da tela), mg (ganho do mic), micSrc, hasScreenAudio }
-let micStream = null, micOn = false, soundOn = true;
-let shareKind = 'screen', facing = 'user', canFlip = false;
-function updFlip(){ const t = tiles.get(myId); if (t) t.el.querySelector('.flip').classList.toggle('hidden', !(canFlip && stream && shareKind === 'cam')); }
-const viewers = new Map();   // quem assiste a minha tela: peerId -> {conn, call}
+// cada um pode ter 2 transmissões ao mesmo tempo: a tela (pela conexão principal) e a câmera (por uma conexão só dela)
+// B.x = { kind, peer, sid, capture, stream, ctx, sg (som da tela), mg (mic), hasScreenAudio, viewers, wantQ }
+const B = { screen: null, cam: null };
+let micStream = null, micOn = false, micSrc = null, micOwner = null, soundOn = true, canFlip = false;
+const anyLive = () => !!(B.screen || B.cam);
+const bcOfSid = sid => (B.screen && sid === B.screen.sid) ? B.screen : (B.cam && sid === B.cam.sid) ? B.cam : null;
+const isSelfSid = sid => !!bcOfSid(sid);
+function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) t.el.querySelector('.flip').classList.toggle('hidden', !canFlip); }
 
 // assistindo (grade)
 let focusId = null;           // tela maximizada (null = todas divididas)
@@ -374,7 +376,7 @@ function boot(){
   renderMe();
   me = new Peer(PEER_OPTS);
   me.on('open', id => { myId = id; joinHub(); });
-  me.on('connection', onIncomingConn);
+  me.on('connection', c => serveConn(c, 'screen'));
   me.on('call', onIncomingCall);
   me.on('disconnected', () => setTimeout(() => { if (me && !me.destroyed && me.disconnected) me.reconnect(); }, 1000));
   me.on('error', err => {
@@ -419,7 +421,7 @@ function joinHub(){
 let lastSent = '';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;
-  const st = { t:'state', cid: CID, nick, photo, sharing: !!stream, kind: stream ? shareKind : null, mic: micOn, sound: soundOn, watching: order.filter(id => id !== myId) };
+  const st = { t:'state', cid: CID, nick, photo, sharing: !!B.screen, camId: B.cam ? B.cam.sid : null, mic: micOn, sound: soundOn, watching: order.filter(id => !isSelfSid(id)) };
   const key = JSON.stringify(st);
   if (!force && key === lastSent) return;   // só manda se mudou alguma coisa
   lastSent = key;
@@ -451,9 +453,10 @@ function runHub(h){
     const best = new Map();
     for (const m of hm.values()) {
       const k = m.cid || m.id, b = best.get(k);
-      if (!b || (m.sharing && !b.sharing) || (m.sharing === b.sharing && m.joined > b.joined)) best.set(k, m);
+      const lv = x => !!(x.sharing || x.camId);
+      if (!b || (lv(m) && !lv(b)) || (lv(m) === lv(b) && m.joined > b.joined)) best.set(k, m);
     }
-    const list = [...best.values()].map(({id,nick,photo,sharing,kind,mic,sound,watching}) => ({id,nick,photo,sharing,kind,mic,sound,watching}));
+    const list = [...best.values()].map(({id,nick,photo,sharing,camId,mic,sound,watching}) => ({id,nick,photo,sharing,camId,mic,sound,watching}));
     for (const m of hm.values()) if (m.conn.open) try { m.conn.send({ t:'list', members:list }); } catch(e){}
   };
   h.on('connection', c => {
@@ -464,10 +467,10 @@ function runHub(h){
         const w = Array.isArray(d.watching) ? d.watching.filter(x => typeof x === 'string').slice(0,16) : [];
         const prev = hm.get(c.peer);
         const nu = { conn:c, id:c.peer, cid: typeof d.cid === 'string' ? d.cid.slice(0,40) : '', joined: prev && prev.conn === c ? prev.joined : Date.now(), nick:String(d.nick || '???').slice(0,20), photo:ph,
-                     sharing:!!d.sharing, kind: d.kind === 'cam' ? 'cam' : 'screen', mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
+                     sharing:!!d.sharing, camId: typeof d.camId === 'string' ? d.camId.slice(0,64) : null, mic:!!d.mic, sound:d.sound !== false, watching:w, seen:Date.now() };
         const old = prev;
         const same = old && old.conn === c && old.nick === nu.nick && old.photo === nu.photo && old.sharing === nu.sharing &&
-                     old.mic === nu.mic && old.cid === nu.cid && old.kind === nu.kind && old.sound === nu.sound && old.watching.join() === nu.watching.join();
+                     old.mic === nu.mic && old.cid === nu.cid && old.camId === nu.camId && old.sound === nu.sound && old.watching.join() === nu.watching.join();
         hm.set(c.peer, nu);
         if (!same) bcast();
       } else if (d.t === 'ping') {
@@ -490,7 +493,7 @@ function runHub(h){
 window.addEventListener('pagehide', () => {
   try { if (hubConn && hubConn.open) hubConn.send({ t:'bye' }); } catch(e){}
   try { hubApi && hubApi.bye(); } catch(e){}
-  setTimeout(() => { try { me && me.destroy(); } catch(e){} try { hub && hub.destroy(); } catch(e){} }, 0);
+  setTimeout(() => { try { me && me.destroy(); } catch(e){} try { hub && hub.destroy(); } catch(e){} try { B.cam && B.cam.peer.destroy(); } catch(e){} }, 0);
 });
 
 /* ===================== lista de quem tá online ===================== */
@@ -501,36 +504,39 @@ function onList(list){
   syncTiles();
 }
 
-function nickOf(id){ if (id === myId) return nick; const m = members.find(x => x.id === id); return m ? m.nick : '???'; }
-function memberOf(id){ return members.find(x => x.id === id); }
+function memberOf(id){ return members.find(x => x.id === id || (x.camId && x.camId === id)); }
+function nickOf(id){ if (id === myId || isSelfSid(id)) return nick; const m = memberOf(id); return m ? m.nick : '???'; }
 function eyesOn(id){ return members.filter(x => x.id !== id && Array.isArray(x.watching) && x.watching.includes(id)).length; }
 
 function render(){
   const L = $('list'); L.innerHTML = '';
-  const sorted = [...members].sort((a,b) => (b.sharing - a.sharing) || (a.id === myId ? -1 : b.id === myId ? 1 : a.nick.localeCompare(b.nick)));
+  const lv = x => (x.sharing || x.camId) ? 1 : 0;
+  const sorted = [...members].sort((a,b) => (lv(b) - lv(a)) || (a.id === myId ? -1 : b.id === myId ? 1 : a.nick.localeCompare(b.nick)));
   if (!gotList) { L.innerHTML = '<div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div>'; }
   for (const m of sorted) {
     const isMe = m.id === myId;
-    const shown = focusId === m.id;
+    const live = !!(m.sharing || m.camId);
+    const shown = !!focusId && (focusId === m.id || focusId === m.camId);
     const el = document.createElement('div');
-    el.className = 'member' + (m.sharing ? ' can' : '') + (shown ? ' sel' : '');
-    if (m.sharing) el.title = shown ? 'Voltar pra todas' : 'Maximizar';
-    const av = document.createElement('div'); av.className = 'av' + (m.sharing ? ' live' : '');
+    el.className = 'member' + (live ? ' can' : '') + (shown ? ' sel' : '');
+    if (live) el.title = shown ? 'Voltar pra todas' : 'Maximizar';
+    const av = document.createElement('div'); av.className = 'av' + (live ? ' live' : '');
     setAv(av, m.nick, m.photo);
     const info = document.createElement('div'); info.className = 'mi';
     const n = document.createElement('div'); n.className = 'mn'; n.textContent = m.nick;
     if (isMe) { const s = document.createElement('small'); s.textContent = ' (você)'; n.appendChild(s); }
-    const st = document.createElement('div'); st.className = 'ms' + (m.sharing ? ' live' : '');
-    if (m.sharing) {
-      const e = eyesOn(m.id);
-      st.textContent = (m.kind === 'cam' ? '📷 câmera' : '🔴 ao vivo') + (m.mic ? ' · 🎤' : '') + (m.sound === false ? ' · 🔇' : '') + (e ? ' · 👀 ' + e : '');
+    const st = document.createElement('div'); st.className = 'ms' + (live ? ' live' : '');
+    if (live) {
+      const e = (m.sharing ? eyesOn(m.id) : 0) + (m.camId ? eyesOn(m.camId) : 0);
+      st.textContent = [m.sharing && '🔴 tela', m.camId && '📷 câmera'].filter(Boolean).join(' + ') + (m.mic ? ' · 🎤' : '') + (m.sharing && m.sound === false ? ' · 🔇' : '') + (e ? ' · 👀 ' + e : '');
     } else if (Array.isArray(m.watching) && m.watching.length) {
       st.textContent = '👀 ' + nickOf(m.watching[0]) + (m.watching.length > 1 ? ` +${m.watching.length - 1}` : '');
     } else st.textContent = 'online';
     info.append(n, st); el.append(av, info);
-    if (m.sharing) {
+    if (live) {
       if (shown) { const tag = document.createElement('span'); tag.className = 'mtag'; tag.textContent = '⤢ maximizado'; el.appendChild(tag); }
-      el.onclick = () => toggleFocus(m.id);
+      const mine = [m.sharing && (isMe ? (B.screen && B.screen.sid) : m.id), m.camId].filter(Boolean);
+      el.onclick = () => shown ? toggleFocus(focusId) : toggleFocus(mine[0]);
     }
     L.appendChild(el);
   }
@@ -542,8 +548,15 @@ function render(){
 
 /* ===================== grade de telas ===================== */
 function sharerIds(){
-  const others = members.filter(m => m.sharing && m.id !== myId).map(m => m.id);
-  return stream ? [...others, myId] : others;
+  const out = [];
+  for (const m of members) {
+    if (m.id === myId) continue;
+    if (m.sharing) out.push(m.id);
+    if (m.camId) out.push(m.camId);
+  }
+  if (B.screen) out.push(B.screen.sid);
+  if (B.cam) out.push(B.cam.sid);
+  return out;
 }
 
 function syncTiles(){
@@ -614,7 +627,7 @@ function layoutGrid(){
 
 function addTile(id){
   if (tiles.has(id)) return;
-  const self = id === myId;
+  const self = isSelfSid(id);
   const el = document.createElement('div'); el.className = 'tile';
   el.innerHTML = `
     <video autoplay playsinline muted></video>
@@ -645,7 +658,7 @@ function addTile(id){
     } catch(e){ toast('Não deu pra flutuar: ' + e.message); }
   };
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
-  if (self) { q('.flip').onclick = flipCam; q('.stopme').onclick = stopShare; q('.stopme').classList.remove('hidden'); }
+  if (self) { const k = bcOfSid(id).kind; q('.flip').onclick = flipCam; q('.stopme').onclick = () => stopBroadcast(k); q('.stopme').textContent = k === 'cam' ? '■ Parar câmera' : '■ Parar tela'; q('.stopme').classList.remove('hidden'); }
   el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip, .stopme')) return; toggleFocus(id); });
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
@@ -655,7 +668,7 @@ function addTile(id){
   updateTileInfo(t);
   startStats(t);
 
-  if (self) { setTileStream(t, stream); updFlip(); return; }
+  if (self) { setTileStream(t, bcOfSid(id).stream); updFlip(); return; }
   const c = me.connect(id, { reliable: true, metadata: { t: 'watch' } });
   t.conn = c;
   c.on('open', () => sendQ(t, true));
@@ -694,7 +707,7 @@ function setTileStream(t, s){
   const v = t.video, q = sel => t.el.querySelector(sel);
   v.srcObject = s;
   q('.tload').classList.add('hidden');
-  if (t.self) { v.muted = true; v.style.transform = (shareKind === 'cam' && (s.getVideoTracks()[0]?.getSettings().facingMode || 'user') !== 'environment') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
+  if (t.self) { v.muted = true; v.style.transform = (bcOfSid(t.id)?.kind === 'cam' && (s.getVideoTracks()[0]?.getSettings().facingMode || 'user') !== 'environment') ? 'scaleX(-1)' : ''; v.play().catch(()=>{}); return; }
   v.volume = +q('.b-vol').value;
   applyAudio(t);
   v.play().catch(() => {
@@ -720,8 +733,10 @@ function applyAudio(t){
 
 function updateTileInfo(t){
   const m = memberOf(t.id);
+  const isCam = t.self ? bcOfSid(t.id)?.kind === 'cam' : !!(m && m.camId === t.id);
   const name = t.self ? 'Você' : (m ? m.nick : '…');
-  t.el.querySelector('.tn').textContent = name + (m && m.mic ? ' 🎤' : '');
+  const mic = t.self ? (micOn && micOwner === bcOfSid(t.id)) : !!(m && m.mic && (isCam || !m.camId));
+  t.el.querySelector('.tn').textContent = name + (isCam ? ' · 📷' : '') + (mic ? ' 🎤' : '');
   setAv(t.el.querySelector('.tname .av'), m ? m.nick : nick, m ? m.photo : photo);
   const e = eyesOn(t.id);
   const ey = t.el.querySelector('.teyes');
@@ -758,9 +773,9 @@ function startStats(t){
 }
 
 /* ===================== transmitir ===================== */
-$('shareBtn').onclick = () => { if (!stream) startShare(); };
-$('camBtn').onclick = () => { if (!stream) startCam(); };
-$('stopBtn').onclick = () => stopShare();
+$('shareBtn').onclick = () => B.screen ? stopBroadcast('screen') : startShare();
+$('camBtn').onclick = () => B.cam ? stopBroadcast('cam') : startCam();
+$('stopBtn').onclick = stopAll;
 if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) $('shareBtn').classList.add('hidden');  // celular: só câmera
 
 // câmera: 720p (60fps se ela aguentar). 1080p de câmera pesava demais com muita gente
@@ -812,58 +827,78 @@ async function startCam(){
   });
   $('camModal').classList.remove('hidden');
 }
+function newPeer(){
+  return new Promise((res, rej) => {
+    const p = new Peer(PEER_OPTS);
+    const to = setTimeout(() => { p.destroy(); rej(new Error('timeout')); }, 10000);
+    p.on('open', () => { clearTimeout(to); res(p); });
+    p.on('error', e => { if (!p.open) { clearTimeout(to); p.destroy(); rej(e); } });
+  });
+}
 async function openCam(id){
+  if (B.cam) return;
   let s;
   try { s = await getCam(id); }
   catch(e) { toast(e.name === 'NotAllowedError' ? 'Libera a câmera aí, primo' : 'Essa câmera não abriu, tenta outra'); return; }
   store.set('simastelas-cam', id || '');
-  beginShare(s, 'cam');
-  toast('Câmera on! Liga o 🎤 se quiser falar');
+  let peer;
+  try { peer = await newPeer(); }
+  catch(e) { s.getTracks().forEach(t => t.stop()); toast('Não conectou a câmera, tenta de novo'); return; }
+  beginBroadcast('cam', s, peer);
+  toast(micOn ? 'Câmera on!' : 'Câmera on! Liga o 🎤 se quiser falar');
   canFlip = (await listCams()).length > 1; updFlip();
 }
 // virar = vai pra próxima câmera da lista
 async function flipCam(){
-  if (!stream || shareKind !== 'cam') return;
+  const b = B.cam; if (!b) return;
   const cams = await listCams();
   if (cams.length < 2) return;
-  const ot = stream.getVideoTracks()[0];
+  const ot = b.stream.getVideoTracks()[0];
   const cur = ot.getSettings().deviceId;
   const i = cams.findIndex(c => c.deviceId === cur);
   const next = cams[(i + 1) % cams.length];
   ot.stop();                                   // alguns celulares só abrem uma câmera por vez
   let s;
   try { s = await getCam(next.deviceId); store.set('simastelas-cam', next.deviceId); }
-  catch(e) { try { s = await getCam(cur); } catch(e2){ stopShare(); return; } toast('Não deu pra virar a câmera'); }
+  catch(e) { try { s = await getCam(cur); } catch(e2){ stopBroadcast('cam'); return; } toast('Não deu pra virar a câmera'); }
+  if (B.cam !== b) { s.getTracks().forEach(t => t.stop()); return; }
   const nt = s.getVideoTracks()[0];
   nt.contentHint = 'motion';
-  nt.addEventListener('ended', stopShare);
-  for (const v of viewers.values()) {
+  nt.addEventListener('ended', () => { if (B.cam === b) stopBroadcast('cam'); });
+  for (const v of b.viewers.values()) {
     const pc = v.call && v.call.peerConnection;
     const snd = pc && pc.getSenders().find(x => x.track && x.track.kind === 'video');
     if (snd) await snd.replaceTrack(nt).catch(()=>{});
   }
-  stream.removeTrack(ot); stream.addTrack(nt);
-  capture = new MediaStream([nt]);
-  const me_t = tiles.get(myId); if (me_t) setTileStream(me_t, stream);
-  retuneAll();
+  b.stream.removeTrack(ot); b.stream.addTrack(nt);
+  b.capture = new MediaStream([nt]);
+  const me_t = tiles.get(b.sid); if (me_t) setTileStream(me_t, b.stream);
+  retuneAll(b);
 }
 
 const WHY = { cpu:'PC no limite 🔥', bandwidth:'internet no limite 🐌', none:'de boa ✅', other:'limitado' };
 setInterval(async () => {
   const el = $('sendStat');
-  el.classList.toggle('hidden', !stream);
-  if (!stream) return;
-  const cap = Math.round(stream.getVideoTracks()[0]?.getSettings().frameRate || 0);
-  const v = [...viewers.values()].find(x => x.call && x.call.peerConnection);
-  if (!v) { el.textContent = `captura ${cap}fps · ninguém assistindo ainda`; return; }
-  try {
-    const st = await v.call.peerConnection.getStats(); let o = null; const codecs = {};
-    st.forEach(r => { if (r.type === 'outbound-rtp' && r.kind === 'video') o = r; if (r.type === 'codec') codecs[r.id] = (r.mimeType || '').split('/')[1]; });
-    if (o) el.textContent = `captura ${cap}fps → enviando ${o.frameHeight || '?'}p ${Math.round(o.framesPerSecond || 0)}fps · ${codecs[o.codecId] || ''} · ${WHY[o.qualityLimitationReason] || ''}`;
-  } catch(e){}
+  el.classList.toggle('hidden', !anyLive());
+  if (!anyLive()) return;
+  const lines = [];
+  for (const b of [B.screen, B.cam]) {
+    if (!b) continue;
+    const label = b.kind === 'cam' ? '📷' : '🖥️';
+    const cap = Math.round(b.stream.getVideoTracks()[0]?.getSettings().frameRate || 0);
+    const v = [...b.viewers.values()].find(x => x.call && x.call.peerConnection);
+    if (!v) { lines.push(`${label} captura ${cap}fps · ninguém assistindo`); continue; }
+    try {
+      const st = await v.call.peerConnection.getStats(); let o = null; const codecs = {};
+      st.forEach(r => { if (r.type === 'outbound-rtp' && r.kind === 'video') o = r; if (r.type === 'codec') codecs[r.id] = (r.mimeType || '').split('/')[1]; });
+      lines.push(o ? `${label} ${cap}fps → ${o.frameHeight || '?'}p ${Math.round(o.framesPerSecond || 0)}fps · ${codecs[o.codecId] || ''} · ${WHY[o.qualityLimitationReason] || ''}` : `${label} conectando…`);
+    } catch(e){}
+  }
+  el.innerHTML = ''; lines.forEach(l => { const d = document.createElement('div'); d.textContent = l; el.appendChild(d); });
 }, 2000);
 
 async function startShare(){
+  if (B.screen) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia)
     return alert('Seu navegador não suporta transmissão de tela. Use Chrome ou Edge no computador.');
   const hd = $('res').value === '1080';
@@ -879,78 +914,91 @@ async function startShare(){
     if (e.name !== 'NotAllowedError') alert('Não foi possível capturar a tela: ' + e.message);
     return;
   }
-  beginShare(s);
+  beginBroadcast('screen', s, me);
 }
 
-function beginShare(s, kind = 'screen'){
-  shareKind = kind;
-  capture = s;
+function beginBroadcast(kind, s, peer){
   const v = s.getVideoTracks()[0];
   v.contentHint = kind === 'cam' ? 'motion' : $('mode').value;
-  v.addEventListener('ended', stopShare);
-
   // mixer: som da tela + mic (cada um com seu liga/desliga, sem reconectar ninguém)
   const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
   const dest = ctx.createMediaStreamDestination(); dest.channelCount = 2;
   const sg = ctx.createGain(), mg = ctx.createGain();
-  sg.gain.value = soundOn ? 1 : 0; mg.gain.value = 0;
-  const sa = s.getAudioTracks()[0];
+  sg.gain.value = soundOn ? 1 : 0; mg.gain.value = 1;
+  const sa = kind === 'screen' ? s.getAudioTracks()[0] : null;
   if (sa) ctx.createMediaStreamSource(new MediaStream([sa])).connect(sg);
   sg.connect(dest); mg.connect(dest);
   ctx.resume().catch(()=>{});
-  mix = { ctx, sg, mg, micSrc: null, hasScreenAudio: !!sa };
   const at = dest.stream.getAudioTracks()[0];
-  at.contentHint = 'music';
-  stream = new MediaStream([v, at]);
-  if (!sa && kind === 'screen') toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
-
-  $('shareRow').classList.add('hidden'); $('stopBtn').classList.remove('hidden');
-  $('sndBtn').classList.toggle('hidden', kind === 'cam');
-  canFlip = false;
-  $('mode').disabled = $('res').disabled = true;
-  $('liveCtl').classList.remove('hidden');
-  updLiveCtl();
-  syncTiles();
-}
-
-function stopShare(){
-  if (!stream) return;
-  capture.getTracks().forEach(t => t.stop());
-  if (micStream) micStream.getTracks().forEach(t => t.stop());
-  micStream = null; micOn = false;
-  try { mix.ctx.close(); } catch(e){}
-  mix = null; stream = null; capture = null;
-  for (const id of [...viewers.keys()]) dropViewer(id);
-  $('shareRow').classList.remove('hidden'); $('stopBtn').classList.add('hidden');
-  $('mode').disabled = $('res').disabled = false;
-  $('liveCtl').classList.add('hidden');
-  removeTile(myId);
-  syncTiles();
-}
-
-async function toggleMic(){
-  if (!mix) return;
-  if (!micOn) {
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
-    } catch(e) { toast('Sem permissão pro microfone'); return; }
-    if (!mix) { micStream.getTracks().forEach(t => t.stop()); micStream = null; return; }
-    mix.micSrc = mix.ctx.createMediaStreamSource(micStream);
-    mix.micSrc.connect(mix.mg);
-    mix.mg.gain.value = 1; micOn = true;
-  } else {
-    mix.mg.gain.value = 0;
-    try { mix.micSrc && mix.micSrc.disconnect(); } catch(e){}
-    mix.micSrc = null;
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    micStream = null; micOn = false;
+  at.contentHint = kind === 'cam' ? 'speech' : 'music';
+  const b = { kind, peer, sid: peer.id, capture: s, stream: new MediaStream([v, at]), ctx, sg, mg, hasScreenAudio: !!sa, viewers: new Map(), wantQ: new Map() };
+  B[kind] = b;
+  v.addEventListener('ended', () => { if (B[kind] === b) stopBroadcast(kind); });
+  if (kind === 'cam') {
+    peer.on('connection', c => serveConn(c, 'cam'));
+    peer.on('disconnected', () => setTimeout(() => { if (B.cam === b && !peer.destroyed && peer.disconnected) peer.reconnect(); }, 1000));
+    peer.on('error', () => {});
   }
-  updLiveCtl(); sendState();
+  if (kind === 'screen' && !sa) toast('Tá indo sem som da tela — marca “compartilha audio” se quiser');
+  routeMic();
+  updShareUi(); syncTiles(); sendState();
+}
+
+function stopBroadcast(kind){
+  const b = B[kind]; if (!b) return;
+  B[kind] = null;
+  b.capture.getTracks().forEach(t => t.stop());
+  for (const id of [...b.viewers.keys()]) dropViewer(b, id);
+  try { b.ctx.close(); } catch(e){}
+  if (kind === 'cam') { canFlip = false; const p = b.peer; setTimeout(() => { try { p.destroy(); } catch(e){} }, 300); }
+  routeMic();
+  removeTile(b.sid);
+  updShareUi(); syncTiles(); sendState();
+}
+function stopAll(){ stopBroadcast('screen'); stopBroadcast('cam'); }
+
+function updShareUi(){
+  const sb = $('shareBtn'), cb = $('camBtn');
+  sb.className = 'btn ' + (B.screen ? 'stop' : 'main') + (sb.classList.contains('hidden') ? ' hidden' : '');
+  sb.textContent = B.screen ? '■ Parar tela' : '🖥️ Tela';
+  cb.className = 'btn ' + (B.cam ? 'stop' : 'cam'); cb.textContent = B.cam ? '■ Parar câmera' : '📷 Câmera';
+  $('stopBtn').textContent = '■ Parar tudo';
+  $('stopBtn').classList.toggle('hidden', !(B.screen && B.cam));
+  $('sndBtn').classList.toggle('hidden', !B.screen);
+  $('liveCtl').classList.toggle('hidden', !anyLive());
+  $('mode').disabled = $('res').disabled = !!B.screen;
+  updLiveCtl(); updFlip();
+}
+
+// o mic vai junto da câmera (ou da tela, se só tiver tela) — nunca nas duas pra não ouvir dobrado
+function routeMic(){
+  const want = micOn ? (B.cam || B.screen) : null;
+  if (micSrc && micOwner !== want) { try { micSrc.disconnect(); } catch(e){} micSrc = null; micOwner = null; }
+  if (!anyLive() && micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; micOn = false; }
+  if (want && micStream && !micSrc) { micSrc = want.ctx.createMediaStreamSource(micStream); micSrc.connect(want.mg); micOwner = want; }
+  updLiveCtl();
+  for (const t of tiles.values()) updateTileInfo(t);
+}
+async function toggleMic(){
+  if (!anyLive()) return;
+  if (!micOn) {
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
+    catch(e) { toast('Sem permissão pro microfone'); return; }
+    if (!anyLive()) { micStream.getTracks().forEach(t => t.stop()); micStream = null; return; }
+    micOn = true;
+  } else {
+    micOn = false;
+    try { micSrc && micSrc.disconnect(); } catch(e){}
+    micSrc = null; micOwner = null;
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+  }
+  routeMic(); sendState();
 }
 function toggleSound(){
   soundOn = !soundOn;
-  if (mix) mix.sg.gain.value = soundOn ? 1 : 0;
-  if (soundOn && mix && !mix.hasScreenAudio) toast('Essa transmissão tá sem som da tela (não marcou compartilha audio)');
+  if (B.screen) B.screen.sg.gain.value = soundOn ? 1 : 0;
+  if (soundOn && B.screen && !B.screen.hasScreenAudio) toast('Essa transmissão tá sem som da tela (não marcou compartilha audio)');
   updLiveCtl(); sendState();
 }
 function updLiveCtl(){
@@ -961,43 +1009,47 @@ function updLiveCtl(){
 $('micBtn').onclick = toggleMic;
 $('sndBtn').onclick = toggleSound;
 
-/* alguém pediu pra assistir minha tela */
-const wantQ = new Map();   // peerId -> {on,h,fps} pedido por quem assiste
-function retuneAll(){ for (const v of viewers.values()) if (v.call && v.call.peerConnection) tuneSenders(v.call.peerConnection, v.call.peer); }
-function onIncomingConn(conn){
+/* alguém pediu pra assistir minha tela ou minha câmera */
+function retuneAll(b){
+  for (const x of (b ? [b] : [B.screen, B.cam])) if (x) for (const v of x.viewers.values()) if (v.call && v.call.peerConnection) tuneSenders(x, v.call.peerConnection, v.call.peer);
+}
+function serveConn(conn, kind){
   if (!conn.metadata || conn.metadata.t !== 'watch') { conn.close(); return; }
   conn.on('data', d => {
-    if (!d || d.t !== 'q') return;
-    wantQ.set(conn.peer, { on: d.on !== false, h: +d.h || 540, fps: +d.fps || 30 });
-    const v = viewers.get(conn.peer);
-    if (v && v.call && v.call.peerConnection) tuneSenders(v.call.peerConnection, conn.peer);
+    const b = B[kind];
+    if (!b || !d || d.t !== 'q') return;
+    b.wantQ.set(conn.peer, { on: d.on !== false, h: +d.h || 540, fps: +d.fps || 30 });
+    const v = b.viewers.get(conn.peer);
+    if (v && v.call && v.call.peerConnection) tuneSenders(b, v.call.peerConnection, conn.peer);
   });
   conn.on('open', () => {
-    if (!stream) { conn.close(); return; }
+    const b = B[kind];
+    if (!b) { conn.close(); return; }
     const id = conn.peer;
-    const old = viewers.get(id); if (old) { try { old.call && old.call.close(); } catch(e){} }
-    const call = me.call(id, stream, { sdpTransform: hqSdp });
-    viewers.set(id, { conn, call });
+    const old = b.viewers.get(id); if (old) { try { old.call && old.call.close(); } catch(e){} }
+    const call = b.peer.call(id, b.stream, { sdpTransform: hqSdp });
+    b.viewers.set(id, { conn, call });
     const pc = call.peerConnection;
     pc.addEventListener('connectionstatechange', () => {
-      if (pc.connectionState === 'connected') retuneAll();
-      if (['failed','closed'].includes(pc.connectionState)) dropViewer(id);
+      if (pc.connectionState === 'connected') retuneAll(b);
+      if (['failed','closed'].includes(pc.connectionState)) dropViewer(b, id);
     });
-    tuneSenders(pc, id); setTimeout(retuneAll, 1500);
-    call.on('close', () => { const v = viewers.get(id); if (v && v.call === call) dropViewer(id); });
+    tuneSenders(b, pc, id); setTimeout(() => retuneAll(b), 1500);
+    call.on('close', () => { const v = b.viewers.get(id); if (v && v.call === call) dropViewer(b, id); });
   });
-  conn.on('close', () => { const v = viewers.get(conn.peer); if (v && v.conn === conn) dropViewer(conn.peer); });
+  conn.on('close', () => { const b = B[kind]; if (!b) return; const v = b.viewers.get(conn.peer); if (v && v.conn === conn) dropViewer(b, conn.peer); });
   conn.on('error', () => {});
 }
 
-async function tuneSenders(pc, peerId){
+async function tuneSenders(b, pc, peerId){
   const hd = $('res').value === '1080';
   const motion = $('mode').value === 'motion';
-  const cam = shareKind === 'cam';
-  const q = wantQ.get(peerId) || { on: true, h: 540, fps: 30 };
-  const n = Math.max(1, viewers.size);
-  // upload total dividido entre quem assiste (câmera de celular não aguenta 12 Mbps x 9)
-  const budget = (cam ? 14e6 : 40e6) / n;
+  const cam = b.kind === 'cam';
+  const q = b.wantQ.get(peerId) || { on: true, h: 540, fps: 30 };
+  const n = Math.max(1, b.viewers.size);
+  // upload total dividido entre quem assiste (e entre tela + câmera se as duas tiverem ligadas)
+  const both = B.screen && B.cam;
+  const budget = (cam ? (both ? 6e6 : 14e6) : (both ? 30e6 : 40e6)) / n;
   for (const sender of pc.getSenders()) {
     if (!sender.track) continue;
     const p = sender.getParameters();
@@ -1025,15 +1077,15 @@ async function tuneSenders(pc, peerId){
   }
 }
 
-function dropViewer(id){
-  const v = viewers.get(id);
+function dropViewer(b, id){
+  const v = b.viewers.get(id);
   if (!v) return;
-  viewers.delete(id); wantQ.delete(id); setTimeout(retuneAll, 200);
+  b.viewers.delete(id); b.wantQ.delete(id); setTimeout(() => retuneAll(b), 200);
   try { v.call && v.call.close(); } catch(e){}
   try { v.conn && v.conn.close(); } catch(e){}
 }
 
-window.addEventListener('beforeunload', e => { if (stream) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (anyLive()) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ===================== início ===================== */
 /* ===================== uma aba só por navegador ===================== */
@@ -1043,13 +1095,13 @@ function isActive(){ return !!me && !idle; }
 if (bc) bc.onmessage = e => {
   const d = e.data || {};
   if (d.tab === TAB) return;
-  if (d.t === 'hello' && isActive()) bc.postMessage({ t:'here', tab: TAB, sharing: !!stream });
+  if (d.t === 'hello' && isActive()) bc.postMessage({ t:'here', tab: TAB, sharing: anyLive() });
   if (d.t === 'takeover' && isActive()) goIdle();
 };
 function goIdle(){
   if (idle) return;
   idle = true;
-  if (stream) stopShare();
+  stopAll();
   for (const id of [...order]) removeTile(id);
   try { if (hubConn && hubConn.open) hubConn.send({ t:'bye' }); } catch(e){}
   try { hubApi && hubApi.bye(); } catch(e){}

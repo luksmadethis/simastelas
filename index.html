@@ -102,6 +102,22 @@
   .stage-top .hint{margin-left:auto;font-size:12px}
   .grid{flex:1;display:grid;gap:10px;min-height:0;position:relative}
   .tile.click{cursor:zoom-in}
+  .live-tog{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:10px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer}
+  .live-tog.on{background:linear-gradient(90deg,#c0303a,#7a3ad0);border-color:transparent}
+  .tile.floating{position:absolute;z-index:10;box-shadow:0 12px 40px rgba(0,0,0,.75);border:2px solid #9b2bc2;touch-action:none;cursor:grab;border-radius:12px}
+  .tile.floating:active{cursor:grabbing}
+  .tile.floating .swap,.tile.floating .tstat,.tile.floating .teyes,.tile.floating .b-big{display:none!important}
+  .tile.floating .ttop{top:6px;left:6px}
+  .tile.floating .tname{font-size:11px;padding:2px 8px 2px 4px}
+  .tile.floating .tname .av{width:16px;height:16px;font-size:8px}
+  .tile.floating .tbar{padding:6px;gap:4px}
+  .tile.floating .ib{padding:4px 6px;font-size:11px}
+  .tile.floating .b-vol{width:50px}
+  .tile.floating .stopme,.tile.floating .flip{bottom:8px;height:30px;font-size:11px;padding:0 9px}
+  .tile.floating .unmute{bottom:8px;font-size:11px;padding:6px 10px}
+  .rz{display:none;position:absolute;right:0;bottom:0;width:24px;height:24px;cursor:nwse-resize;z-index:6;touch-action:none;
+      background:linear-gradient(135deg,transparent 52%,rgba(255,255,255,.75) 52% 58%,transparent 58% 68%,rgba(255,255,255,.75) 68% 74%,transparent 74%)}
+  .tile.floating .rz{display:block}
   .swap{display:none;position:absolute;top:44px;right:10px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:17px;cursor:pointer;z-index:3}
   .tile.issmall .swap{display:block}
   .tile.issmall .tname{font-size:11px}
@@ -193,6 +209,7 @@
   <!-- ============ PALCO ============ -->
   <main class="stage">
     <div class="stage-top">
+      <button class="live-tog hidden" id="liveTog" title="Câmeras viram janelinhas que você arrasta e muda o tamanho por cima da tela">🎬 Modo live</button>
       <span class="hint" id="hint" style="margin-left:0"></span>
     </div>
     <div class="grid" id="grid">
@@ -329,6 +346,9 @@ function updFlip(){ const t = B.cam && tiles.get(B.cam.sid); if (t) t.el.querySe
 
 // assistindo (grade)
 let focus = [];              // telas escolhidas pra ver (vazio = todas divididas)
+let liveMode = store.get('simastelas-live') === '1';   // câmeras flutuando por cima da tela
+let floatPos = {}; try { floatPos = JSON.parse(store.get('simastelas-float') || '{}'); } catch(e){}
+let floatZ = 10;
 let bigPref = null;          // qual fica grande: null = automático, 'none' = tudo igual, ou o id da tela
 const tiles = new Map();     // peerId -> tile
 let order = [];              // ordem das telas na grade
@@ -646,13 +666,33 @@ new ResizeObserver(updateQualities).observe(document.getElementById('grid'));
 document.addEventListener('enterpictureinpicture', updateQualities, true);
 document.addEventListener('leavepictureinpicture', updateQualities, true);
 
+const floatKey = id => nickOf(id) + '|cam';
+// janelinha flutuante da câmera: posição/tamanho guardados em fração da área (mantém no lugar se a janela mudar)
+function placeFloat(t, idx, gw, gh){
+  const ar = t.ar || 16/9, k = floatKey(t.id);
+  let p = floatPos[k];
+  if (!p) {
+    const w = Math.min(0.28, (gh * 0.32 * ar) / gw);
+    const hpx = (w * gw) / ar;
+    p = { w, x: 1 - w - 16 / gw, y: (gh - 16 - hpx - idx * (hpx + 12)) / gh };
+  }
+  let wpx = Math.min(Math.max(110, p.w * gw), gw * 0.95), hpx = wpx / ar;
+  if (hpx > gh * 0.95) { hpx = gh * 0.95; wpx = hpx * ar; }
+  const x = Math.min(Math.max(0, p.x * gw), gw - wpx), y = Math.min(Math.max(0, p.y * gh), gh - hpx);
+  Object.assign(t.el.style, { left: x + 'px', top: y + 'px', width: wpx + 'px', height: hpx + 'px', gridRow: '', gridColumn: '' });
+}
+function saveFloat(){ store.set('simastelas-float', JSON.stringify(floatPos)); }
+
 function layoutGrid(){
   const g = $('grid');
-  const vis = visIds();
+  const all = visIds();
+  // modo live: câmeras saem da grade e flutuam por cima das telas (se tiver alguma tela)
+  const floatIds = (liveMode && all.some(id => !isCamSid(id))) ? all.filter(isCamSid) : [];
+  const vis = all.filter(id => !floatIds.includes(id));
   const n = vis.length;
   const big = pickBig(vis);
   const narrow = window.innerWidth <= 820;
-  $('centerMsg').classList.toggle('hidden', n > 0);
+  $('centerMsg').classList.toggle('hidden', all.length > 0);
   const rest = vis.filter(id => id !== big);
   if (big) {
     if (narrow) { g.style.gridTemplateColumns = `repeat(${rest.length}, minmax(0,1fr))`; g.style.gridTemplateRows = 'minmax(0,3fr) minmax(0,1fr)'; }
@@ -663,32 +703,48 @@ function layoutGrid(){
     g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
     g.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
   }
+  const gw = g.clientWidth, gh = g.clientHeight;
   order.forEach((id, i) => {
     const t = tiles.get(id); if (!t) return;
-    const show = vis.includes(id);
+    const show = all.includes(id);
+    const fl = floatIds.includes(id);
     const st = t.el.style;
     st.display = show ? '' : 'none';
     st.order = id === big ? -1 : i;
-    if (big && show) {
-      const k = rest.indexOf(id);
-      if (id === big) { st.gridColumn = narrow ? '1 / -1' : '1'; st.gridRow = narrow ? '1' : `1 / span ${rest.length}`; }
-      else { st.gridColumn = narrow ? String(k + 1) : '2'; st.gridRow = narrow ? '2' : String(k + 1); }
-    } else {
-      st.gridRow = '';
-      st.gridColumn = (n === 3 && vis.indexOf(id) === 2) ? '1 / span 2' : '';
+    t.el.classList.toggle('floating', fl);
+    if (fl) placeFloat(t, floatIds.indexOf(id), gw, gh);
+    else {
+      Object.assign(st, { left: '', top: '', width: '', height: '', zIndex: '' });
+      if (big && show) {
+        const k = rest.indexOf(id);
+        if (id === big) { st.gridColumn = narrow ? '1 / -1' : '1'; st.gridRow = narrow ? '1' : `1 / span ${rest.length}`; }
+        else { st.gridColumn = narrow ? String(k + 1) : '2'; st.gridRow = narrow ? '2' : String(k + 1); }
+      } else {
+        st.gridRow = '';
+        st.gridColumn = (n === 3 && vis.indexOf(id) === 2) ? '1 / span 2' : '';
+      }
     }
-    t.el.classList.toggle('click', order.length > 1 && !(focus.length === 1 && focus[0] === id));
-    t.el.classList.toggle('focus', focus.length === 1 && focus[0] === id);
-    t.el.classList.toggle('isbig', id === big);
-    t.el.classList.toggle('issmall', !!big && id !== big && show);
+    t.el.classList.toggle('click', !fl && order.length > 1 && !(focus.length === 1 && focus[0] === id));
+    t.el.classList.toggle('focus', !fl && focus.length === 1 && focus[0] === id);
+    t.el.classList.toggle('isbig', !fl && id === big);
+    t.el.classList.toggle('issmall', !fl && !!big && id !== big && show);
     const bb = t.el.querySelector('.b-big');
-    bb.classList.toggle('hidden', n < 2 || !show);
+    bb.classList.toggle('hidden', n < 2 || !show || fl);
     bb.textContent = id === big ? '⊟' : '⬛';
     bb.title = id === big ? 'Deixar todas do mesmo tamanho' : 'Deixar essa grande';
     applyAudio(t);
   });
+  const hasCam = order.some(isCamSid);
+  $('liveTog').classList.toggle('hidden', !hasCam);
+  $('liveTog').classList.toggle('on', liveMode);
+  $('liveTog').textContent = liveMode ? '🎬 Modo live: on' : '🎬 Modo live';
   updateQualities();
 }
+$('liveTog').onclick = () => {
+  liveMode = !liveMode; store.set('simastelas-live', liveMode ? '1' : '0');
+  layoutGrid();
+  if (liveMode) toast('Arrasta as câmeras pra onde quiser e puxa o cantinho pra mudar o tamanho');
+};
 window.addEventListener('resize', () => { clearTimeout(layoutGrid.r); layoutGrid.r = setTimeout(layoutGrid, 150); });
 
 function addTile(id){
@@ -698,6 +754,7 @@ function addTile(id){
   el.innerHTML = `
     <video autoplay playsinline muted></video>
     <div class="tload"><div class="spinner"></div></div>
+    <div class="rz" title="Arrasta pra mudar o tamanho"></div>
     <div class="ttop"><span class="tname"><i></i><span class="av"></span><span class="tn"></span></span><span class="teyes"></span></div>
     <button class="swap" title="Trocar: essa fica grande">⇄</button>
     <button class="unmute hidden">🔊 Toca em qualquer lugar pra ativar o som</button>
@@ -729,7 +786,36 @@ function addTile(id){
   q('.swap').onclick = () => setBig(id);
   q('.b-fs').onclick = () => document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen().catch(()=>{});
   if (self) { const k = bcOfSid(id).kind; q('.flip').onclick = flipCam; q('.stopme').onclick = () => stopBroadcast(k); q('.stopme').textContent = k === 'cam' ? '■ Parar câmera' : '■ Parar tela'; q('.stopme').classList.remove('hidden'); }
-  el.addEventListener('click', e => { if (e.target.closest('.tbar, .unmute, .flip, .stopme, .swap')) return; toggleFocus(id); });
+  el.addEventListener('click', e => { if (el.classList.contains('floating') || e.target.closest('.tbar, .unmute, .flip, .stopme, .swap')) return; toggleFocus(id); });
+  el.addEventListener('pointerdown', e => {
+    if (!el.classList.contains('floating') || (e.target.closest('button, input') && !e.target.closest('.rz'))) return;
+    e.preventDefault();
+    const g = $('grid').getBoundingClientRect(), r = el.getBoundingClientRect();
+    const rz = !!e.target.closest('.rz');
+    const sx = e.clientX, sy = e.clientY, ox = r.left - g.left, oy = r.top - g.top, ow = r.width;
+    el.style.zIndex = ++floatZ;
+    try { el.setPointerCapture(e.pointerId); } catch(err){}
+    const move = ev => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (rz) {
+        const ar = t.ar || 16/9;
+        let w = Math.min(Math.max(110, ow + dx), g.width - ox, (g.height - oy) * ar);
+        el.style.width = w + 'px'; el.style.height = (w / ar) + 'px';
+      } else {
+        el.style.left = Math.min(Math.max(0, ox + dx), g.width - r.width) + 'px';
+        el.style.top = Math.min(Math.max(0, oy + dy), g.height - r.height) + 'px';
+      }
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      const nr = el.getBoundingClientRect();
+      floatPos[floatKey(id)] = { x: (nr.left - g.left) / g.width, y: (nr.top - g.top) / g.height, w: nr.width / g.width };
+      saveFloat(); updateQualities();
+    };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+  const fitAr = () => { const v = t.video; if (!v.videoWidth) return; const ar = v.videoWidth / v.videoHeight; if (Math.abs(ar - (t.ar || 0)) > 0.02) { t.ar = ar; if (el.classList.contains('floating')) layoutGrid(); } };
+  t.video.addEventListener('loadedmetadata', fitAr); t.video.addEventListener('resize', fitAr);
   let hideT; const showBar = () => { el.classList.add('show'); clearTimeout(hideT); hideT = setTimeout(() => el.classList.remove('show'), 3000); };
   el.addEventListener('mousemove', showBar); el.addEventListener('touchstart', showBar, { passive: true });
 

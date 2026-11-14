@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="1794638830">
+<meta name="build" content="1794638910">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SimasTelas</title>
 <meta name="description" content="Faz live ai primo 🏳️‍🌈 Transmissão de tela em 1080p 60fps.">
@@ -586,7 +586,7 @@ function myPing(){
   const v = members.filter(m => m.id !== myId && typeof m.ping === 'number').map(m => m.ping).sort((a, b) => a - b);
   return v.length ? v[Math.floor(v.length / 2)] : null;
 }
-const pingBucket = v => v == null ? null : v < 100 ? Math.round(v / 5) * 5 : Math.round(v / 25) * 25;
+const pingBucket = v => v == null ? null : v < 20 ? Math.max(1, v) : v < 100 ? Math.round(v / 5) * 5 : Math.round(v / 25) * 25;
 const pingCls = v => v == null ? '' : v <= 100 ? 'g' : v <= 200 ? 'o' : 'r';
 function sendState(force){
   if (!hubConn || !hubConn.open) return;

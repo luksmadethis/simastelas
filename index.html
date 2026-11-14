@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="build" content="1794638715">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SimasTelas</title>
 <meta name="description" content="Faz live ai primo 🏳️‍🌈 Transmissão de tela em 1080p 60fps.">
@@ -2020,6 +2021,20 @@ async function updatePing(){
   b.className = 'ping' + (worst == null ? '' : worst <= 100 ? ' g' : worst <= 200 ? ' o' : ' r');
 }
 setInterval(updatePing, 2000);
+
+/* ===================== atualização automática ===================== */
+// confere se saiu versão nova do site; se sim, atualiza sozinho (ou avisa, se você tiver transmitindo)
+const BUILD = document.querySelector('meta[name=build]').content;
+let updWarned = false;
+setInterval(async () => {
+  try {
+    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/<meta name="build" content="(\d+)">/);
+    if (!m || m[1] === BUILD) return;
+    if (!anyLive()) { location.reload(); return; }
+    if (!updWarned) { updWarned = true; toast('Tem versão nova do site — dá F5 quando parar de transmitir'); }
+  } catch(e){}
+}, 60000);
 
 /* ===================== início ===================== */
 /* ===================== uma aba só por navegador ===================== */

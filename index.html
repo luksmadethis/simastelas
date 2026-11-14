@@ -567,7 +567,7 @@ function render(){
   for (const m of sorted) {
     const isMe = m.id === myId;
     const live = !!(m.sharing || m.camId);
-    const mine = [m.sharing && (isMe ? (B.screen && B.screen.sid) : m.id), isMe ? (B.cam && B.cam.sid) : m.camId].filter(Boolean);
+    const mine = [m.sharing && (isMe ? (B.screen && B.screen.sid) : m.id), isMe ? (B.cam && !SM && B.cam.sid) : m.camId].filter(Boolean);
     const shown = mine.some(x => focus.includes(x));
     const el = document.createElement('div');
     el.className = 'member' + (live ? ' can' : '') + (shown ? ' sel' : '');

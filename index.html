@@ -178,6 +178,8 @@
   .diag .row b{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
   .diag .tip{background:#2a2210;border:1px solid #5a4a20;color:#ffd27a;border-radius:10px;padding:8px 10px;font-size:12px}
   .diag .ok{color:#7dffa5}.diag .bad{color:#ff8a9a}.diag .meh{color:#ffd27a}
+  .ping{margin-left:auto;border:0;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;cursor:pointer;background:#24212d;color:var(--mut);font-variant-numeric:tabular-nums}
+  .ping.g{background:#123d22;color:#5dff8f}.ping.o{background:#43300f;color:#ffb347}.ping.r{background:#4a1520;color:#ff6b7f}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#24212d;border:1px solid var(--line);padding:10px 18px;border-radius:12px;font-size:14px;z-index:99}
   @media(max-width:480px){.stopme,.flip{height:40px;padding:0 12px;font-size:13px}}
   @media(max-width:820px){body{overflow:auto;height:auto}.app{grid-template-columns:1fr}.stage{order:-1;padding:10px}.grid{min-height:58vh;flex:none;height:58vh}.side{border-right:0;border-top:1px solid var(--line)}.list{max-height:40vh}.center-msg h1{font-size:34px}}
@@ -191,7 +193,7 @@
   <aside class="side">
     <div class="side-head">
       <div class="logo" title="SimasTelas"><span style="color:#e40303">S</span><span style="color:#ff8c00">i</span><span style="color:#ffed00">m</span><span style="color:#00c13a">a</span><span style="color:#2a6bff">s</span><span style="color:#a43cd8">T</span><span style="color:#e40303">e</span><span style="color:#ff8c00">l</span><span style="color:#ffed00">a</span><span style="color:#00c13a">s</span></div>
-      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">entrando…</span><button class="link-btn" id="diagBtn" title="Diagnóstico da conexão" style="margin-left:auto">📶 diagnóstico</button></div>
+      <div class="online"><span class="gdot off" id="netDot"></span><span id="onlineTxt">entrando…</span><button class="ping" id="diagBtn" title="Ping (estabilidade da chamada). Clica pro diagnóstico completo">📶 —</button></div>
     </div>
     <div class="list" id="list"><div class="empty-list"><div class="spinner sm"></div>carregando a sala…</div></div>
     <div class="controls">
@@ -480,7 +482,7 @@ function setNet(ok, txt){
   $('netDot').classList.toggle('off', !ok);
   if (txt) $('onlineTxt').textContent = txt;
 }
-function onlineLabel(){ return `${members.length} online` + (pingMs != null ? ` · ${pingMs}ms` : ''); }
+function onlineLabel(){ return `${members.length} online`; }
 
 // procura a sala em todas as "portas" ao mesmo tempo e entra na primeira que responder
 function joinHub(){
@@ -1605,6 +1607,28 @@ $('diagBtn').onclick = () => { diagOpen = true; $('diagModal').classList.remove(
 $('diagClose').onclick = () => { diagOpen = false; $('diagModal').classList.add('hidden'); };
 $('diagCopy').onclick = async () => { try { await navigator.clipboard.writeText(diagText); toast('Copiado! Cola no Discord'); } catch(e){ prompt('Copia:', diagText); } };
 setInterval(renderDiag, 1500);
+
+/* ===================== ping (estabilidade) ===================== */
+// usa o pior ping entre as chamadas de vídeo (é o que trava); sem vídeo, o ping até a sala
+async function updatePing(){
+  const pcs = [];
+  for (const t of tiles.values()) if (!t.self && t.call && t.call.peerConnection) pcs.push(t.call.peerConnection);
+  for (const b of [B.screen, B.cam]) if (b) for (const v of b.viewers.values()) if (v.call && v.call.peerConnection) pcs.push(v.call.peerConnection);
+  let worst = null;
+  for (const pc of pcs) {
+    try {
+      const st = await pc.getStats(); let pair = null; const byId = new Map(); st.forEach(r => byId.set(r.id, r));
+      st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = byId.get(r.selectedCandidatePairId); });
+      if (!pair) st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') pair = r; });
+      if (pair && pair.currentRoundTripTime != null) worst = Math.max(worst ?? 0, Math.round(pair.currentRoundTripTime * 1000));
+    } catch(e){}
+  }
+  if (worst == null && !hub && pingMs != null) worst = pingMs;
+  const b = $('diagBtn');
+  b.textContent = '📶 ' + (worst == null ? '—' : worst + 'ms');
+  b.className = 'ping' + (worst == null ? '' : worst <= 100 ? ' g' : worst <= 200 ? ' o' : ' r');
+}
+setInterval(updatePing, 2000);
 
 /* ===================== início ===================== */
 /* ===================== uma aba só por navegador ===================== */

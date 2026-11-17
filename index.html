@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="build" content="1794800908">
+<meta name="build" content="1794921657">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SimasTelas</title>
 <meta name="description" content="Faz live ai primo 🏳️‍🌈 Transmissão de tela em 1080p 60fps.">
@@ -320,6 +320,17 @@
     <h4 class="fxh">Rosto</h4><div class="fxgrid" id="fxFace"></div>
     <h4 class="fxh">Fundo</h4><div class="fxgrid" id="fxBg"></div>
     <button class="btn cam" id="fxClose" style="margin-top:14px;padding:10px">Pronto</button>
+  </div>
+</div>
+<div class="modal hidden" id="micModal">
+  <div class="card">
+    <h1 style="font-size:22px;margin-bottom:12px">Qual <span class="grad">áudio</span>?</h1>
+    <div id="micList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <label style="display:flex;gap:10px;align-items:center;margin-top:14px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="micMusic" style="width:auto">
+      <span>🎵 <b>Som de música</b> — sem filtro de voz, estéreo e qualidade máxima (pra FL Studio, Virtual Cable, instrumento)</span>
+    </label>
+    <button class="link-btn" style="margin-top:12px" id="micCancel">cancelar</button>
   </div>
 </div>
 <div class="toast hidden" id="toast"></div>
@@ -1380,13 +1391,54 @@ function routeMic(){
   updLiveCtl();
   for (const t of tiles.values()) updateTileInfo(t);
 }
+// escolher a entrada de áudio (mic, Virtual Cable, placa de som...)
+let micMusic = false;
+const isMusicDev = l => /cable|virtual|voicemeeter|vb-audio|stereo mix|mixagem est|loopback|blackhole/i.test(l || '');
+async function pickMic(){
+  let devs = [];
+  try { devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput'); } catch(e){}
+  if (devs.length && !devs[0].label) {   // sem permissão ainda: pede uma vez pra ver os nomes
+    try { const tmp = await navigator.mediaDevices.getUserMedia({ audio: true }); tmp.getTracks().forEach(t => t.stop()); devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput'); }
+    catch(e) { toast('Sem permissão pro microfone'); return null; }
+  }
+  devs = devs.filter(d => d.deviceId !== 'communications');
+  if (devs.length <= 1) return { id: devs[0] && devs[0].deviceId, music: store.get('simastelas-micmusic') === '1' };
+  return new Promise(res => {
+    const box = $('micList'); box.innerHTML = '';
+    const last = store.get('simastelas-mic');
+    const chk = $('micMusic');
+    chk.checked = store.get('simastelas-micmusic') === '1';
+    devs.forEach(d => {
+      const b = document.createElement('button');
+      b.className = 'btn cam-opt' + (d.deviceId === last ? ' last' : '');
+      const nm = (d.label || 'Entrada de áudio').replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*$/i, '').replace(/^Padrão - |^Default - /i, '⭐ ');
+      b.textContent = (isMusicDev(d.label) ? '🎛️ ' : '🎤 ') + nm;
+      b.onmouseenter = () => { if (isMusicDev(d.label)) chk.checked = true; };
+      b.onclick = () => {
+        $('micModal').classList.add('hidden');
+        store.set('simastelas-mic', d.deviceId); store.set('simastelas-micmusic', chk.checked ? '1' : '0');
+        res({ id: d.deviceId, music: chk.checked });
+      };
+      box.appendChild(b);
+    });
+    $('micCancel').onclick = () => { $('micModal').classList.add('hidden'); res(null); };
+    $('micModal').classList.remove('hidden');
+  });
+}
 async function toggleMic(){
   if (!anyLive()) return;
   if (!micOn) {
-    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } }); }
-    catch(e) { toast('Sem permissão pro microfone'); return; }
+    const pick = await pickMic(); if (!pick) return;
+    micMusic = pick.music;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: pick.music
+        ? { deviceId: pick.id ? { exact: pick.id } : undefined, echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:2, sampleRate:48000, sampleSize:16 }
+        : { deviceId: pick.id ? { exact: pick.id } : undefined, echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+    }
+    catch(e) { toast('Não deu pra abrir esse áudio: ' + (e.message || e.name)); return; }
     if (!anyLive()) { micStream.getTracks().forEach(t => t.stop()); micStream = null; return; }
     micOn = true;
+    retuneAll();
   } else {
     micOn = false;
     try { micSrc && micSrc.disconnect(); } catch(e){}
@@ -1404,7 +1456,7 @@ function toggleSound(){
 }
 function updLiveCtl(){
   const m = $('micBtn'), s = $('sndBtn');
-  m.classList.toggle('on', micOn); m.classList.toggle('off', !micOn); m.textContent = micOn ? '🎤 Mic on' : '🎤 Mic off';
+  m.classList.toggle('on', micOn); m.classList.toggle('off', !micOn); m.textContent = micOn ? (micMusic ? '🎵 Áudio on' : '🎤 Mic on') : '🎤 Mic off';
   s.classList.toggle('on', soundOn); s.classList.toggle('off', !soundOn); s.textContent = soundOn ? '🔊 Som on' : '🔇 Som off';
 }
 $('micBtn').onclick = toggleMic;
@@ -1916,7 +1968,7 @@ async function tuneSenders(b, pc, peerId){
       e.maxBitrate = Math.round(Math.max(250e3, Math.min(table * (fps >= 50 ? 1.4 : 1), budget, cam ? 4e6 : full)));
       p.degradationPreference = (motion || cam) ? 'maintain-framerate' : 'maintain-resolution';
     } else {
-      e.maxBitrate = cam ? (n > 3 ? 64e3 : 128e3) : (n > 5 ? 192e3 : 510e3);
+      e.maxBitrate = (micOn && micMusic && micOwner === b) ? (n > 5 ? 256e3 : 510e3) : cam ? (n > 3 ? 64e3 : 128e3) : (n > 5 ? 192e3 : 510e3);
       e.priority = 'high';
       e.networkPriority = 'high';
     }
